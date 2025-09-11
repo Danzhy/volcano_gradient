@@ -46,7 +46,7 @@ init_center_z = 1
 spacing = 0.8
 
 f_util = FlockingUtils(NUM_DRONES, init_center_x, init_center_y, init_center_z, spacing)
-pos_xs, pos_ys, pos_zs, pos_h_xc, pos_h_yc, pos_h_zc = f_util.initialize_positions(123)
+pos_xs, pos_ys, pos_zs, pos_h_xc, pos_h_yc, pos_h_zc = f_util.initialize_positions()
 
 INIT_XYZ = np.zeros([NUM_DRONES, 3])
 INIT_XYZ[:, 0] = pos_xs
@@ -134,11 +134,12 @@ def run(
                                                               )
 
         #### Log the simulation ####################################
-        for j in range(NUM_DRONES):
-            logger.log(drone=j,
-                       timestamp=i / env.CTRL_FREQ,
-                       state=np.array([pos_x[j], pos_y[j], pos_z[j]])
-                       )
+        # Logging disabled to focus on flocking behavior
+        # for j in range(NUM_DRONES):
+        #     logger.log(drone=j,
+        #                timestamp=i / env.CTRL_FREQ,
+        #                state=obs[j]  # Use full state vector
+        #                )
 
         #### Printout ##############################################
         env.render()
@@ -152,12 +153,13 @@ def run(
     env.close()
 
     #### Save the simulation results ###########################
-    logger.save()
+    # logger.save()
     # logger.save_as_csv("beta")  # Optional CSV save
 
     #### Plot the simulation results ###########################
-    if plot:
-        logger.plot()
+    # if plot:
+    #     logger.plot()
+    print("Flocking simulation completed successfully!")
 
 
 if __name__ == "__main__":
