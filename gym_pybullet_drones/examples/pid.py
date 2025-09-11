@@ -124,15 +124,15 @@ def run(
 
     #### Initialize the controllers ############################
     if drone in [DroneModel.CF2X, DroneModel.CF2P]:
-        ctrl = [DSLPIDControl(drone_model=drone) for i in range(num_drones)]
+        ctrl = [DSLPIDControl(drone_model=drone) for i in range(num_drones)] 
 
     #### Run the simulation ####################################
-    action = np.zeros((num_drones,4))
+    action = np.zeros((num_drones,4)) # Create empty "controller inputs" for each drone # why 4?
     START = time.time()
     for i in range(0, int(duration_sec*env.CTRL_FREQ)):
 
         #### Make it rain rubber ducks #############################
-        # if i/env.SIM_FREQ>5 and i%10==0 and i/env.SIM_FREQ<10: p.loadURDF("duck_vhacd.urdf", [0+random.gauss(0, 0.3),-0.5+random.gauss(0, 0.3),3], p.getQuaternionFromEuler([random.randint(0,360),random.randint(0,360),random.randint(0,360)]), physicsClientId=PYB_CLIENT)
+        if i/env.CTRL_FREQ>5 and i%10==0 and i/env.CTRL_FREQ<10: p.loadURDF("duck_vhacd.urdf", [0+random.gauss(0, 0.3),-0.5+random.gauss(0, 0.3),3], p.getQuaternionFromEuler([random.randint(0,360),random.randint(0,360),random.randint(0,360)]), physicsClientId=PYB_CLIENT)
 
         #### Step the simulation ###################################
         obs, reward, terminated, truncated, info = env.step(action)
