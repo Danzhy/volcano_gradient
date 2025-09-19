@@ -7,6 +7,9 @@ import argparse
 import numpy as np
 import sys
 import pybullet as p
+from PIL import Image
+import os
+import matplotlib.pyplot as plt
 
 # Import existing gym-pybullet-drones components
 sys.path.append('ants_2024/')
@@ -38,6 +41,34 @@ spacing = 0.8
 # Goal settings - NEW!
 GOAL_POSITION = [4.0, 3.0]  # Target location (X, Y)
 GOAL_ATTRACTION_STRENGTH = 0.4  # How strongly drones are attracted to goal
+
+class GradientMap:
+    """Manages the gradient map loaded from an image."""
+
+    def __init__(self, image_path, size_x, size_y):
+        """Initializes the GradientMap."""
+        try:
+            self.map = np.array(Image.open(image_path).convert('L'))
+            print(f"🗺️  Gradient map loaded successfully from {image_path}")
+        except FileNotFoundError:
+            print(f"❌ ERROR: Gradient map image not found at {image_path}")
+            sys.exit(1)
+
+        self.size_x = size_x
+        self.size_y = size_y
+        self.grad_const_x = self.map.shape[0] / self.size_y
+        self.grad_const_y = self.map.shape[1] / self.size_x
+        print(f"   - Map dimensions: {self.map.shape[1]}x{self.map.shape[0]} pixels")
+        print(f"   - Simulation world size: {self.size_x}m x {self.size_y}m")
+
+    def get_gradient_at_position(self, x, y):
+        """Gets the gradient value and pixel coordinates at a given world coordinate."""
+        pixel_row = int(y * self.grad_const_x)
+        pixel_col = int(x * self.grad_const_y)
+        pixel_row = np.clip(pixel_row, 0, self.map.shape[0] - 1)
+        pixel_col = np.clip(pixel_col, 0, self.map.shape[1] - 1)
+        value = self.map[pixel_row, pixel_col]
+        return value, pixel_row, pixel_col
 
 class FlockingUtils2DWithGoal:
     """Wrapper around FlockingUtils with goal-seeking behavior added"""
@@ -194,7 +225,18 @@ class GoalVisualizer:
         )
 
 def run(duration_sec=DURATION_SEC):
-    print("=== 2D Flocking with Goal Target (Built on REAL FlockingUtils) ===")
+    print("=== Flocking Simulation with Gradient Sensor Check ===")
+    
+    # SENSOR CHECK SETUP ==========================================================
+    WORLD_SIZE_X = 6.5
+    WORLD_SIZE_Y = 4.0
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    gradient_map_path = os.path.join(script_dir, '..', 'assets', 'linear_4x65.png')
+    grad_map = GradientMap(image_path=gradient_map_path, size_x=WORLD_SIZE_X, size_y=WORLD_SIZE_Y)
+    print("this is the gradient map");
+    print(grad_map)
+    # ============================================================================
+
     print("This extends the proven 2d_flocking_with_real_utils.py foundation")
     print("by adding goal-seeking behavior while keeping all research algorithms!")
     
@@ -215,6 +257,9 @@ def run(duration_sec=DURATION_SEC):
     INIT_XYZ[:, 2] = pos_zs  # All should be FIXED_HEIGHT
     INIT_RPY = np.array([[.0, .0, .0] for _ in range(NUM_DRONES)])
 
+    # Store final positions for plotting
+    final_positions = np.zeros((NUM_DRONES, 2))
+
     # Create environment (same as 3D version!)
     env = CtrlAviary(
         drone_model=DEFAULT_DRONES,
@@ -233,12 +278,12 @@ def run(duration_sec=DURATION_SEC):
     p.configureDebugVisualizer(p.COV_ENABLE_SHADOWS, 0)
 
     # Set top-down camera view for 2D visualization
-    # p.resetDebugVisualizerCamera(
-    #     cameraDistance=8,
-    #     cameraYaw=0,
-    #     cameraPitch=-89,  # Look straight down
-    #     cameraTargetPosition=[3, 2.5, FIXED_HEIGHT]
-    # )
+    p.resetDebugVisualizerCamera(
+        cameraDistance=8,
+        cameraYaw=0,
+        cameraPitch=-89,  # Look straight down
+        cameraTargetPosition=[3, 2.5, FIXED_HEIGHT]
+    )
 
     # Create controllers (same as always!)
     ctrl = [DSLPIDControl(drone_model=DEFAULT_DRONES) for i in range(NUM_DRONES)]
@@ -301,6 +346,16 @@ def run(duration_sec=DURATION_SEC):
             pos_y[j] = states[1]
             pos_z[j] = FIXED_HEIGHT  # Force Z to be constant!
 
+            # Store final positions for plotting
+            final_positions[j, 0] = pos_x[j]
+            final_positions[j, 1] = pos_y[j]
+
+            # SENSOR CHECK ================================================================
+            gradient_value, pixel_row, pixel_col = grad_map.get_gradient_at_position(pos_x[j], pos_y[j])
+            if i % 24 == 0: # Print periodically to avoid spamming the console
+                print(f"Drone {j} at (X:{pos_x[j]:.2f}, Y:{pos_y[j]:.2f}) -> Maps to Pixel (Row:{pixel_row}, Col:{pixel_col}) -> Senses Gradient: {gradient_value}")
+            # ============================================================================
+
         # NEW: Compute 2D flocking forces WITH GOAL ATTRACTION
         velocities_2d = f_util.compute_2d_flocking_forces_with_goal(pos_x, pos_y, pos_z)
         f_util.update_heading()
@@ -342,6 +397,30 @@ def run(duration_sec=DURATION_SEC):
     # Cleanup
     env.close()
     
+    # SENSOR CHECK: Display the ground truth map ================================
+    print("\nDisplaying ground truth gradient map with final drone positions...")
+
+    # Convert final world positions to pixel coordinates for plotting
+    final_pixel_rows = np.zeros(NUM_DRONES)
+    final_pixel_cols = np.zeros(NUM_DRONES)
+    for j in range(NUM_DRONES):
+        _, final_pixel_rows[j], final_pixel_cols[j] = grad_map.get_gradient_at_position(final_positions[j, 0], final_positions[j, 1])
+
+    plt.imshow(grad_map.map, cmap='gray', origin='lower')
+    plt.scatter(final_pixel_cols, final_pixel_rows, c='red', s=40, label='Drones (Final Position)')
+
+    # Convert final goal position to pixel coordinates and plot it
+    _, goal_pixel_row, goal_pixel_col = grad_map.get_gradient_at_position(current_goal[0], current_goal[1])
+    plt.scatter(goal_pixel_col, goal_pixel_row, c='blue', marker='*', s=150, label='Goal (Final Position)')
+
+    plt.colorbar(label="Gradient Value (0-255)")
+    plt.xlabel("Pixel Column (Corresponds to World X-axis)")
+    plt.ylabel("Pixel Row (Corresponds to World Y-axis)")
+    plt.title("Ground Truth Gradient Map with Final Drone Positions")
+    plt.legend()
+    plt.show()
+    # ============================================================================
+
     # NEW: Final statistics
     final_distances = [
         np.linalg.norm([pos_x[j] - current_goal[0], pos_y[j] - current_goal[1]])

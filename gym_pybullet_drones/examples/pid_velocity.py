@@ -6,7 +6,9 @@ Example
 -------
 In a terminal, run as:
 
+    $ conda activate drones
     $ python pid_velocity.py
+
 
 Notes
 -----

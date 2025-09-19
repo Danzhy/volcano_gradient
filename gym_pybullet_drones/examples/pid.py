@@ -146,6 +146,13 @@ def run(
                                                                     target_rpy=INIT_RPYS[j, :]
                                                                     )
 
+            # from cursor: (learning) 
+            # action = [
+            #     [motor1_0, motor2_0, motor3_0, motor4_0],  # ← action[0, :] = drone 0
+            #     [motor1_1, motor2_1, motor3_1, motor4_1],  # ← action[1, :] = drone 1  
+            #     [motor1_2, motor2_2, motor3_2, motor4_2]   # ← action[2, :] = drone 2
+            # ]
+
         #### Go to the next way point and loop #####################
         for j in range(num_drones):
             wp_counters[j] = wp_counters[j] + 1 if wp_counters[j] < (NUM_WP-1) else 0

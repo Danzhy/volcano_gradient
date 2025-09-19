@@ -1,5 +1,5 @@
 import numpy as np
-import plot_swarm_v2
+# import plot_swarm_v2  # Commented out for 2D flocking compatibility
 
 
 class FlockingUtils:
@@ -57,7 +57,7 @@ class FlockingUtils:
         self.map_3d = 255 * np.exp(-(X ** 2 + Y ** 2 + Z ** 2) / (2 * self.sigma ** 2))
         self.grad_const_x, self.grad_const_y, self.grad_const_z = [150 / boun for boun in (self.boun_x, self.boun_y, self.boun_z)]
 
-        self.plotter = plot_swarm_v2.SwarmPlotter(self.n_agents, self.boun_x, self.boun_y, self.boun_z)
+        # self.plotter = plot_swarm_v2.SwarmPlotter(self.n_agents, self.boun_x, self.boun_y, self.boun_z)  # Commented out
 
     # def initialize_positions(self, random_seed):
     #     rng = np.random.default_rng(random_seed)
@@ -394,7 +394,7 @@ class FlockingUtilsVec:
         self.map_3d = 255 * np.exp(-(X ** 2 + Y ** 2 + Z ** 2) / (2 * self.sigma ** 2))
         self.grad_const_x, self.grad_const_y, self.grad_const_z = [150 / boun for boun in (self.boun_x, self.boun_y, self.boun_z)]
 
-        self.plotter = plot_swarm_v2.SwarmPlotter(self.n_agents, self.boun_x, self.boun_y, self.boun_z)
+        # self.plotter = plot_swarm_v2.SwarmPlotter(self.n_agents, self.boun_x, self.boun_y, self.boun_z)  # Commented out
 
     def initialize_positions(self):
         """
