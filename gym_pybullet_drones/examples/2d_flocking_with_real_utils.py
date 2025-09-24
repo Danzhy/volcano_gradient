@@ -14,14 +14,18 @@ from gym_pybullet_drones.utils.enums import DroneModel, Physics
 from gym_pybullet_drones.envs.CtrlAviary import CtrlAviary
 from gym_pybullet_drones.control.DSLPIDControl import DSLPIDControl
 from gym_pybullet_drones.utils.utils import sync, str2bool
+from gym_pybullet_drones.utils.Logger import Logger
 from ants_2024.flocking_utils import FlockingUtils
 
 # Configuration
 DEFAULT_DRONES = DroneModel("cf2x")
 DEFAULT_PHYSICS = Physics("pyb")
 DEFAULT_GUI = True
+DEFAULT_PLOT = False
+DEFAULT_USER_DEBUG_GUI = False
 DEFAULT_SIMULATION_FREQ_HZ = 240
 DEFAULT_CONTROL_FREQ_HZ = 48
+DEFAULT_OUTPUT_FOLDER = 'results_2d_1'
 DURATION_SEC = 15
 
 NUM_DRONES = 5
@@ -40,6 +44,7 @@ GOAL_POSITION = [4.0, 3.0]  # Target location (X, Y)
 GOAL_ATTRACTION_STRENGTH = 0.4  # How strongly drones are attracted to goal
 
 class FlockingUtils2DWithGoal:
+    # TODO: change this wrapper term because prof doesnt like it. 
     """Wrapper around FlockingUtils with goal-seeking behavior added"""
     
     def __init__(self, n_agents, center_x, center_y, center_z, spacing, goal_pos, goal_strength):
@@ -59,7 +64,10 @@ class FlockingUtils2DWithGoal:
     
     def initialize_positions(self):
         """Initialize positions but ensure Z is fixed"""
-        pos_xs, pos_ys, pos_zs, pos_h_xc, pos_h_yc, pos_h_zc = self.flocking_3d.initialize_positions()
+
+        # TODO: add a comment here. what are we affecting? is this the drone controller only? and not something else 
+        # that might crash?
+        pos_xs, pos_ys, pos_zs, pos_h_xc, pos_h_yc, pos_h_zc = self.flocking_3d.initialize_positions() 
         
         # Force all Z positions to be constant
         pos_zs.fill(self.fixed_z)
@@ -233,15 +241,22 @@ def run(duration_sec=DURATION_SEC):
     p.configureDebugVisualizer(p.COV_ENABLE_SHADOWS, 0)
 
     # Set top-down camera view for 2D visualization
-    # p.resetDebugVisualizerCamera(
-    #     cameraDistance=8,
-    #     cameraYaw=0,
-    #     cameraPitch=-89,  # Look straight down
-    #     cameraTargetPosition=[3, 2.5, FIXED_HEIGHT]
-    # )
+    p.resetDebugVisualizerCamera(
+        cameraDistance=8,
+        cameraYaw=0,
+        cameraPitch=-89,  # Look straight down
+        cameraTargetPosition=[3, 2.5, FIXED_HEIGHT]
+    )
 
     # Create controllers (same as always!)
     ctrl = [DSLPIDControl(drone_model=DEFAULT_DRONES) for i in range(NUM_DRONES)]
+
+    #### Initialize the logger #################################
+    logger = Logger(logging_freq_hz=DEFAULT_CONTROL_FREQ_HZ,
+                    num_drones=NUM_DRONES,
+                    output_folder=DEFAULT_OUTPUT_FOLDER,
+                    )
+
     
     # NEW: Create goal visualizer
     goal_viz = GoalVisualizer(GOAL_POSITION)
@@ -303,10 +318,12 @@ def run(duration_sec=DURATION_SEC):
 
         # NEW: Compute 2D flocking forces WITH GOAL ATTRACTION
         velocities_2d = f_util.compute_2d_flocking_forces_with_goal(pos_x, pos_y, pos_z)
+        pos_hxs, pos_hys, pos_hzs = f_util.get_heading()
         f_util.update_heading()
         
         # Show progress every 3 seconds
         if i % (env.CTRL_FREQ * 3) == 0:
+            # f_util.plot_swarm(pos_x, pos_y, pos_z, pos_hxs, pos_hys, pos_hzs)
             avg_dist_to_goal = np.mean([
                 np.linalg.norm([pos_x[j] - current_goal[0], pos_y[j] - current_goal[1]])
                 for j in range(NUM_DRONES)
