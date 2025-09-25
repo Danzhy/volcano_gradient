@@ -17,6 +17,78 @@ from gym_pybullet_drones.utils.utils import sync, str2bool
 from gym_pybullet_drones.utils.Logger import Logger
 from ants_2024.flocking_utils import FlockingUtils
 
+# Gradient Map Configuration - Step 1: Infrastructure Setup
+# Inspired by: DynamicSimulationGradFollow/Dynamic Simulaton/dm_ds_v2.py
+# This adds gradient map loading without changing any existing behavior
+import os
+from PIL import Image, ImageDraw
+import matplotlib.pyplot as plt
+
+# Gradient map settings (matching dm_ds_v2.py approach)
+GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/Tugay_Gradient_Pybullet/DynamicSimulationGradFollow/Dynamic Simulaton/linear_4x65.png"
+WORLD_SIZE_X = 6.5  # meters (matches dm_ds_v2.py)
+WORLD_SIZE_Y = 4.0  # meters (matches dm_ds_v2.py)
+
+# Load gradient map (will be used in future steps)
+try:
+    # .convert('L') converts image to grayscale (L = Luminance)
+    # This gives us a 2D array where each pixel is a single intensity value (0-255)
+    # Perfect for gradient following since we only need scalar light intensity readings
+    gradient_map = np.array(Image.open(GRADIENT_MAP_PATH).convert('L')) # gray scale
+    print(f"[INFO] Gradient map loaded: {gradient_map.shape} pixels")
+    print(f"[INFO] World size: {WORLD_SIZE_X}m x {WORLD_SIZE_Y}m")
+except FileNotFoundError:
+    print(f"[ERROR] Gradient map not found at {GRADIENT_MAP_PATH}")
+    print("[WARNING] Using dummy gradient map for now")
+    gradient_map = np.zeros((100, 100))  # Dummy map
+
+# Light Sensor Simulation - Step 2: Infrastructure Setup
+# Inspired by: DynamicSimulationGradFollow/Dynamic Simulaton/dm_ds_v2.py
+# Simulates light intensity readings from gradient map at drone positions
+
+def read_light_intensity(pybullet_x, pybullet_y, add_noise=True):
+    """
+    Read light intensity from gradient map at given PyBullet coordinates
+    Supports both single drone and multiple drones (arrays)
+    
+    Args:
+        pybullet_x: X coordinate(s) in PyBullet world (meters) - single value or array
+        pybullet_y: Y coordinate(s) in PyBullet world (meters) - single value or array
+        add_noise: Whether to add realistic sensor noise (default: True)
+    
+    Returns:
+        intensity: Light intensity value(s) (0-255) - single value or array
+    """
+    # Calculate mapping constants (based on dm_ds_v2.py: step=0.04)
+    step_size = 0.04
+    grad_const_x = (len(np.arange(start=0.00, stop=WORLD_SIZE_X, step=step_size))) / WORLD_SIZE_X
+    grad_const_y = (len(np.arange(start=0.00, stop=WORLD_SIZE_Y, step=step_size))) / WORLD_SIZE_Y
+    
+    # Convert PyBullet coordinates to map indices (matching dm_ds_v2.py coordinate swap)
+    # This coordinate swap IS CORRECT and matches the original research implementation
+    map_y = np.ceil(pybullet_x * grad_const_y)  # x->y mapping from dm_ds_v2.py
+    map_x = np.ceil(pybullet_y * grad_const_x)  # y->x mapping from dm_ds_v2.py
+    
+    # Convert to integers and clip to map bounds
+    map_x = np.clip(map_x.astype(int), 0, gradient_map.shape[0] - 1)
+    map_y = np.clip(map_y.astype(int), 0, gradient_map.shape[1] - 1)
+    
+    # Read gradient values from map
+    grad_vals = gradient_map[map_x, map_y]
+    
+    # Add realistic sensor noise (inspired by dm_ds_v2.py: g_noise_mag = 0.5)
+    if add_noise:
+        g_noise_mag = 0.5  # Same noise magnitude as dm_ds_v2.py
+        g_noises = -g_noise_mag + 2 * g_noise_mag * np.random.rand(*grad_vals.shape)
+        grad_vals = grad_vals + g_noises
+    
+    return grad_vals
+
+# Test coordinate mapping (will be used in future steps)
+print(f"[INFO] Coordinate mapping functions ready")
+print(f"[INFO] World bounds: (0,0) to ({WORLD_SIZE_X},{WORLD_SIZE_Y}) meters")
+print(f"[INFO] Gradient map bounds: (0,0) to {gradient_map.shape} pixels")
+
 # Configuration
 DEFAULT_DRONES = DroneModel("cf2x")
 DEFAULT_PHYSICS = Physics("pyb")
@@ -39,28 +111,20 @@ init_center_y = 1.5
 init_center_z = FIXED_HEIGHT  # Use our fixed height
 spacing = 0.8
 
-# Goal settings - NEW!
-GOAL_POSITION = [4.0, 3.0]  # Target location (X, Y)
-GOAL_ATTRACTION_STRENGTH = 0.4  # How strongly drones are attracted to goal
+# No goal settings needed - using gradient following instead
 
-class FlockingUtils2DWithGoal:
-    # TODO: change this wrapper term because prof doesnt like it. 
-    """Wrapper around FlockingUtils with goal-seeking behavior added"""
+class FlockingUtils2DWithLightSensor:
+    """2D Flocking with Gradient Following - Built on proven FlockingUtils foundation"""
     
-    def __init__(self, n_agents, center_x, center_y, center_z, spacing, goal_pos, goal_strength):
+    def __init__(self, n_agents, center_x, center_y, center_z, spacing):
         # Create the real FlockingUtils (same as before)
         self.flocking_3d = FlockingUtils(n_agents, center_x, center_y, center_z, spacing)
         self.fixed_z = center_z
         
-        # NEW: Goal-seeking parameters
-        self.goal_position = np.array(goal_pos)
-        self.goal_strength = goal_strength
-        
-        print(f"🎯 Created 2D FlockingUtils with Goal-Seeking")
-        print(f"   - Using proven research algorithms (same as before)")
+        print(f"💡 Created 2D FlockingUtils with Gradient Following")
+        print(f"   - Using proven research algorithms from FlockingUtils")
         print(f"   - Constraining all drones to Z = {self.fixed_z}")
-        print(f"   - NEW: Goal target at ({goal_pos[0]}, {goal_pos[1]})")
-        print(f"   - NEW: Goal attraction strength = {goal_strength}")
+        print(f"   - Added light sensor simulation and adaptive spacing")
     
     def initialize_positions(self):
         """Initialize positions but ensure Z is fixed"""
@@ -79,12 +143,34 @@ class FlockingUtils2DWithGoal:
         
         return pos_xs, pos_ys, pos_zs, pos_h_xc, pos_h_yc, pos_h_zc
     
-    def compute_2d_flocking_forces_with_goal(self, pos_xs, pos_ys, pos_zs):
+    def compute_2d_flocking_forces_with_light_sensor(self, pos_xs, pos_ys, pos_zs):
         """Compute flocking forces + goal attraction (EXTENDED VERSION)"""
         
         # Force all Z positions to be constant before calculation
         pos_zs_constrained = np.full_like(pos_zs, self.fixed_z)
         
+        # --- NEW: Integrate Adaptive Spacing ---
+        # Calculate the adaptive spacing 'su' for each drone based on light intensity
+        # and update the flocking utility's separation parameter ('sigmas').
+        
+        # Gradient following parameters (from swarm_vu.c firmware)
+        sb = 0.3  # Base spacing
+        sv = 0.5  # Variable spacing component
+        lmn = 0.0   # Minimum light intensity (grayscale image: 0-255)
+        lmx = 255.0 # Maximum light intensity (grayscale image: 0-255)
+
+        # Calculate 'su' for each drone
+        adaptive_sigmas = np.zeros(len(pos_xs))
+        for i in range(len(pos_xs)):
+            light_intensity = read_light_intensity(pos_xs[i], pos_ys[i], add_noise=True)
+            light_capped = np.clip(light_intensity, lmn, lmx)
+            light_normalized = (light_capped - lmn) / (lmx - lmn)
+            su = sb + np.power(light_normalized, 0.1) * sv
+            adaptive_sigmas[i] = su
+            
+        # Update the separation parameter in FlockingUtils with our new values
+        self.flocking_3d.update_sigmas(adaptive_sigmas)
+
         # Use the real FlockingUtils calculations with constrained Z
         self.flocking_3d.calc_dij(pos_xs, pos_ys, pos_zs_constrained)
         self.flocking_3d.calc_ang_ij(pos_xs, pos_ys, pos_zs_constrained)
@@ -96,7 +182,7 @@ class FlockingUtils2DWithGoal:
         # Get velocities but zero out Z component
         u = self.flocking_3d.calc_u_w()
         
-        # Convert to 2D velocity commands with GOAL FORCES ADDED
+        # Convert to 2D velocity commands 
         velocities_2d = np.zeros((len(pos_xs), 3))
         
         for i in range(len(pos_xs)):
@@ -107,35 +193,17 @@ class FlockingUtils2DWithGoal:
             base_vx = u[i] * np.cos(hx[i])  # X velocity from flocking
             base_vy = u[i] * np.cos(hy[i])  # Y velocity from flocking
             
-            # NEW: Goal attraction force calculation
-            drone_pos = np.array([pos_xs[i], pos_ys[i]])
-            goal_direction = self.goal_position - drone_pos
-            goal_distance = np.linalg.norm(goal_direction)
-            
-            if goal_distance > 0.1:  # Avoid division by zero
-                goal_direction = goal_direction / goal_distance  # Normalize
-                # Stronger attraction when farther away (up to max distance)
-                goal_force = self.goal_strength * min(goal_distance, 2.0)
-                goal_vx = goal_direction[0] * goal_force
-                goal_vy = goal_direction[1] * goal_force
-            else:
-                goal_vx = goal_vy = 0.0
-            
-            # NEW: Combine flocking + goal forces
-            total_vx = base_vx + goal_vx
-            total_vy = base_vy + goal_vy
+            # The gradient following is now handled by the adaptive spacing in FlockingUtils,
+            # so we don't need any additional velocity components here.
+            total_vx = base_vx
+            total_vy = base_vy
             
             # Store combined velocities
-            velocities_2d[i, 0] = total_vx  # X velocity (flocking + goal)
-            velocities_2d[i, 1] = total_vy  # Y velocity (flocking + goal)
+            velocities_2d[i, 0] = total_vx  # X velocity (flocking only)
+            velocities_2d[i, 1] = total_vy  # Y velocity (flocking only)
             velocities_2d[i, 2] = 0.0       # Z velocity = 0 (stay at fixed height)
         
         return velocities_2d
-    
-    def update_goal_position(self, new_goal_pos):
-        """NEW: Update goal position for interactive control"""
-        self.goal_position = np.array(new_goal_pos)
-        print(f"🎯 Goal moved to: ({new_goal_pos[0]:.1f}, {new_goal_pos[1]:.1f})")
     
     def update_heading(self):
         """Update heading but constrain Z component"""
@@ -151,68 +219,79 @@ class FlockingUtils2DWithGoal:
         hz.fill(0.0)  # Force Z heading to zero
         return hx, hy, hz
 
-class GoalVisualizer:
-    """NEW: Manages the visual goal target"""
+def create_drone_position_overlay(final_pos_x, final_pos_y, output_folder):
+    """
+    Overlays final drone positions on the gradient map.
     
-    def __init__(self, goal_position):
-        self.goal_position = goal_position
-        
-        # Create red circle target
-        visual_shape = p.createVisualShape(
-            p.GEOM_CYLINDER,
-            radius=0.3,
-            length=0.05,
-            rgbaColor=[1, 0, 0, 0.8]  # Red, semi-transparent
-        )
-        
-        self.goal_body_id = p.createMultiBody(
-            baseMass=0,  # Static
-            baseVisualShapeIndex=visual_shape,
-            basePosition=[goal_position[0], goal_position[1], 0.025]
-        )
-        
-        # Add text label
-        self.text_id = p.addUserDebugText(
-            "GOAL",
-            [goal_position[0], goal_position[1], 0.5],
-            textColorRGB=[1, 0, 0],
-            textSize=2.0
-        )
-        
-        print(f"🔴 Created visual goal target at ({goal_position[0]}, {goal_position[1]})")
+    Args:
+        final_pos_x: Array of final X positions of drones.
+        final_pos_y: Array of final Y positions of drones.
+        output_folder: Directory to save the output image.
+    """
+    print("\n📸 Creating overlay of final drone positions on gradient map...")
     
-    def update_goal_position(self, new_position):
-        """Move the goal to a new position"""
-        self.goal_position = new_position
+    try:
+        # Load the gradient map image
+        img = Image.open(GRADIENT_MAP_PATH).convert("RGB")
+        draw = ImageDraw.Draw(img)
         
-        # Update visual position
-        p.resetBasePositionAndOrientation(
-            self.goal_body_id,
-            [new_position[0], new_position[1], 0.025],
-            [0, 0, 0, 1]
-        )
+        # Calculate coordinate mapping constants (same as in read_light_intensity)
+        step_size = 0.04
+        grad_const_x = (len(np.arange(start=0.00, stop=WORLD_SIZE_X, step=step_size))) / WORLD_SIZE_X
+        grad_const_y = (len(np.arange(start=0.00, stop=WORLD_SIZE_Y, step=step_size))) / WORLD_SIZE_Y
         
-        # Update text (remove old, create new)
-        p.removeUserDebugItem(self.text_id)
-        self.text_id = p.addUserDebugText(
-            "GOAL",
-            [new_position[0], new_position[1], 0.5],
-            textColorRGB=[1, 0, 0],
-            textSize=2.0
-        )
+        # Draw each drone's final position
+        for i in range(len(final_pos_x)):
+            pybullet_x = final_pos_x[i]
+            pybullet_y = final_pos_y[i]
+            
+            # Convert PyBullet coords to image pixel coords (matching read_light_intensity)
+            # Use the same coordinate swap as the original research implementation
+            map_y = int(np.ceil(pybullet_x * grad_const_y))
+            map_x = int(np.ceil(pybullet_y * grad_const_x))
+            
+            # Clip to image bounds to be safe
+            map_x_clipped = np.clip(map_x, 0, img.height - 1)
+            map_y_clipped = np.clip(map_y, 0, img.width - 1)
+            
+            # Draw a circle for the drone
+            radius = 5
+            # Note the coordinate swap: Pillow uses (x,y) which is (width, height)
+            draw.ellipse(
+                (map_y_clipped - radius, map_x_clipped - radius, map_y_clipped + radius, map_x_clipped + radius),
+                fill='red',
+                outline='white'
+            )
+            
+        # Save and show the image
+        output_path = os.path.join(output_folder, "final_positions_overlay.png")
+        img.save(output_path)
+        print(f"✅ Overlay saved to: {output_path}")
+        
+        # Display the image with correct orientation matching the coordinate system
+        plt.imshow(img)
+        plt.title("Final Drone Positions on Gradient Map")
+        plt.xlabel("Image Pixels (PyBullet Y -> Image X)")
+        plt.ylabel("Image Pixels (PyBullet X -> Image Y)")
+        plt.gca().invert_yaxis()  # Invert Y-axis to match PyBullet's view
+        plt.show()
+        
+    except FileNotFoundError:
+        print(f"[ERROR] Could not create overlay. Gradient map not found at {GRADIENT_MAP_PATH}")
+    except Exception as e:
+        print(f"[ERROR] An error occurred while creating the overlay: {e}")
+        
 
 def run(duration_sec=DURATION_SEC):
-    print("=== 2D Flocking with Goal Target (Built on REAL FlockingUtils) ===")
-    print("This extends the proven 2d_flocking_with_real_utils.py foundation")
-    print("by adding goal-seeking behavior while keeping all research algorithms!")
+    print("=== 2D Flocking with Gradient Following (Built on REAL FlockingUtils) ===")
+    print("This extends the proven FlockingUtils foundation")
+    print("by adding light sensor simulation and gradient following behavior!")
     
-    # Create 2D wrapper with goal-seeking capability
-    f_util = FlockingUtils2DWithGoal(
+    # Create 2D wrapper with gradient following capability
+    f_util = FlockingUtils2DWithLightSensor(
         n_agents=NUM_DRONES,
         center_x=init_center_x, center_y=init_center_y, center_z=init_center_z, 
-        spacing=spacing,
-        goal_pos=GOAL_POSITION,
-        goal_strength=GOAL_ATTRACTION_STRENGTH
+        spacing=spacing
     )
     pos_xs, pos_ys, pos_zs, pos_h_xc, pos_h_yc, pos_h_zc = f_util.initialize_positions()
 
@@ -257,47 +336,21 @@ def run(duration_sec=DURATION_SEC):
                     output_folder=DEFAULT_OUTPUT_FOLDER,
                     )
 
-    
-    # NEW: Create goal visualizer
-    goal_viz = GoalVisualizer(GOAL_POSITION)
-
-    print("\n🎯 Controls:")
-    print("- Arrow keys (WASD): Move the goal target around")
+    print("\n💡 Controls:")
     print("- Q: Quit simulation")
-    print("🔍 Watch how drones balance flocking behavior with goal seeking!")
-    print("🔴 Red circle = GOAL TARGET that drones will seek")
+    print("🔍 Watch how drones balance flocking behavior with gradient following!")
+    print("📈 Drones will naturally aggregate in areas with higher light intensity")
 
     START = time.time()
     action = np.zeros((NUM_DRONES, 4))
 
-    # Track goal for progress monitoring
-    current_goal = GOAL_POSITION.copy()
-
-    # Main simulation loop (extended from original)
+    # Main simulation loop - gradient following
     for i in range(0, int(duration_sec * env.CTRL_FREQ)):
         # Clear any visual artifacts (same as before)
         p.removeAllUserDebugItems()
         
-        # NEW: Handle user input for goal movement
+        # Handle user input for simulation control
         keys = p.getKeyboardEvents()
-        goal_moved = False
-        
-        if p.B3G_LEFT_ARROW in keys or ord('a') in keys:
-            current_goal[0] -= 0.1
-            goal_moved = True
-        if p.B3G_RIGHT_ARROW in keys or ord('d') in keys:
-            current_goal[0] += 0.1
-            goal_moved = True
-        if p.B3G_UP_ARROW in keys or ord('w') in keys:
-            current_goal[1] += 0.1
-            goal_moved = True
-        if p.B3G_DOWN_ARROW in keys or ord('s') in keys:
-            current_goal[1] -= 0.1
-            goal_moved = True
-        
-        if goal_moved:
-            goal_viz.update_goal_position(current_goal)
-            f_util.update_goal_position(current_goal)
         
         if ord('q') in keys:
             break
@@ -316,19 +369,20 @@ def run(duration_sec=DURATION_SEC):
             pos_y[j] = states[1]
             pos_z[j] = FIXED_HEIGHT  # Force Z to be constant!
 
-        # NEW: Compute 2D flocking forces WITH GOAL ATTRACTION
-        velocities_2d = f_util.compute_2d_flocking_forces_with_goal(pos_x, pos_y, pos_z)
+        # NEW: Compute 2D flocking forces WITH LIGHT SENSOR SIMULATION
+        velocities_2d = f_util.compute_2d_flocking_forces_with_light_sensor(pos_x, pos_y, pos_z)
         pos_hxs, pos_hys, pos_hzs = f_util.get_heading()
         f_util.update_heading()
         
         # Show progress every 3 seconds
         if i % (env.CTRL_FREQ * 3) == 0:
             # f_util.plot_swarm(pos_x, pos_y, pos_z, pos_hxs, pos_hys, pos_hzs)
-            avg_dist_to_goal = np.mean([
-                np.linalg.norm([pos_x[j] - current_goal[0], pos_y[j] - current_goal[1]])
-                for j in range(NUM_DRONES)
-            ])
-            print(f"⏱️  Time: {i/env.CTRL_FREQ:.1f}s | 📏 Avg distance to goal: {avg_dist_to_goal:.2f}m")
+            # Print light intensity readings for debugging
+            light_readings = [read_light_intensity(pos_x[j], pos_y[j], add_noise=False) for j in range(NUM_DRONES)]
+            avg_light_intensity = np.mean(light_readings)
+            
+            print(f"⏱️  Time: {i/env.CTRL_FREQ:.1f}s | 💡 Avg light intensity: {avg_light_intensity:.1f}")
+            print(f"    💡 Individual readings: {[f'{reading:.1f}' for reading in light_readings]}")
 
         # Apply control for each drone (same structure as before)
         for j in range(NUM_DRONES):
@@ -359,16 +413,18 @@ def run(duration_sec=DURATION_SEC):
     # Cleanup
     env.close()
     
-    # NEW: Final statistics
-    final_distances = [
-        np.linalg.norm([pos_x[j] - current_goal[0], pos_y[j] - current_goal[1]])
-        for j in range(NUM_DRONES)
-    ]
-    print(f"\n🎯 Goal-seeking flocking simulation completed!")
-    print(f"📊 Final distances to goal: {[f'{d:.2f}m' for d in final_distances]}")
-    print(f"📈 Average final distance: {np.mean(final_distances):.2f}m")
-    print(f"✅ Successfully combined FlockingUtils research algorithms with goal-seeking!")
-    print(f"🚀 Ready for next step: Replace goal with light source!")
+    # Create overlay of final positions
+    create_drone_position_overlay(pos_x, pos_y, DEFAULT_OUTPUT_FOLDER)
+    
+    # Final statistics
+    final_light_readings = [read_light_intensity(pos_x[j], pos_y[j], add_noise=False) for j in range(NUM_DRONES)]
+    avg_final_light = np.mean(final_light_readings)
+    
+    print(f"\n💡 Gradient following simulation completed!")
+    print(f"📊 Final light intensities: {[f'{reading:.1f}' for reading in final_light_readings]}")
+    print(f"📈 Average final light intensity: {avg_final_light:.1f}")
+    print(f"✅ Successfully combined FlockingUtils research algorithms with gradient following!")
+    print(f"🚀 Drones naturally aggregated based on local light intensity readings!")
 
 if __name__ == "__main__":
     run()

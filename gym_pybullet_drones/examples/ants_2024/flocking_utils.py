@@ -59,51 +59,12 @@ class FlockingUtils:
 
         # self.plotter = plot_swarm_v2.SwarmPlotter(self.n_agents, self.boun_x, self.boun_y, self.boun_z)  # Commented out
 
-    # def initialize_positions(self, random_seed):
-    #     rng = np.random.default_rng(random_seed)
-    #
-    #     # Approximate equal distribution in 3D space
-    #     def approximate_distribution(n):
-    #         for z in range(int(n ** (1 / 3)), 0, -1):
-    #             if n % z == 0:
-    #                 rest = n // z
-    #                 for y in range(int(rest ** 0.5), 0, -1):
-    #                     if rest % y == 0:
-    #                         x = rest // y
-    #                         return x, y, z
-    #         return 1, 1, n  # Fallback for n = 1
-    #
-    #     n_points_x, n_points_y, n_points_z = approximate_distribution(self.n_agents)
-    #
-    #     spacing = self.spacing
-    #     init_x = self.center_x
-    #     init_y = self.center_y
-    #     init_z = self.center_z
-    #
-    #     x_min, x_max = init_x, init_x + n_points_x * spacing - spacing
-    #     y_min, y_max = init_y, init_y + n_points_y * spacing - spacing
-    #     z_min, z_max = init_z, init_z + n_points_z * spacing - spacing
-    #
-    #     x_values = np.linspace(x_min, x_max, n_points_x)
-    #     y_values = np.linspace(y_min, y_max, n_points_y)
-    #     z_values = np.linspace(z_min, z_max, n_points_z)
-    #     xx, yy, zz = np.meshgrid(x_values, y_values, z_values)
-    #
-    #     total_points = n_points_x * n_points_y * n_points_z
-    #     pos_xs = xx.ravel() + (rng.random(total_points) * spacing * 0.5) - spacing * 0.25
-    #     pos_ys = yy.ravel() + (rng.random(total_points) * spacing * 0.5) - spacing * 0.25
-    #     pos_zs = zz.ravel() + (rng.random(total_points) * spacing * 0.5) - spacing * 0.25
-    #
-    #     theta = np.random.uniform(0, 2 * np.pi, self.n_agents)
-    #     phi = np.random.uniform(0, np.pi, self.n_agents)
-    #
-    #     self.pos_h_xc = np.sin(phi) * np.cos(theta)
-    #     self.pos_h_yc = np.sin(phi) * np.sin(theta)
-    #     self.pos_h_zc = np.cos(phi)
-    #
-    #     pos_h_m = np.sqrt(np.square(self.pos_h_xc) + np.square(self.pos_h_yc) + np.square(self.pos_h_zc))
-    #
-    #     return pos_xs, pos_ys, pos_zs, self.pos_h_xc, self.pos_h_yc, self.pos_h_zc
+    def update_sigmas(self, new_sigmas):
+        """
+        NEW: Update the sigmas array for adaptive spacing.
+        This allows the gradient following algorithm to modify separation forces.
+        """
+        self.sigmas = new_sigmas
 
     def initialize_positions(self):
         """
@@ -312,7 +273,11 @@ class FlockingUtils:
         ang_f_h = np.arccos(cos_dot_f_h)
         # ang_f_h += self.rng.uniform(-self.noise_h, self.noise_h, self.n_agents) * self.dt
 
+        # --- FIX: Align with dm_ds_v2.py ---
+        # The original research code adds a small constant forward velocity (0.05)
+        # to ensure the drones are always encouraged to move.
         self.u = self.k1 * f_mag * np.cos(ang_f_h) + 0.05
+
         self.w = self.k2 * f_mag * np.sin(ang_f_h)
 
         self.u = np.clip(self.u, 0, self.umax_const)
