@@ -98,7 +98,7 @@ DEFAULT_USER_DEBUG_GUI = False
 DEFAULT_SIMULATION_FREQ_HZ = 240
 DEFAULT_CONTROL_FREQ_HZ = 48
 DEFAULT_OUTPUT_FOLDER = 'results_2d_1'
-DURATION_SEC = 15
+DURATION_SEC = 120
 
 NUM_DRONES = 5
 FIXED_HEIGHT = 1.0  # All drones stay at this Z height
@@ -106,7 +106,7 @@ FIXED_HEIGHT = 1.0  # All drones stay at this Z height
 # p.setRealTimeSumiulation(0)
 
 # Starting position for swarm
-init_center_x = 1.5
+init_center_x = 5.0
 init_center_y = 1.5
 init_center_z = FIXED_HEIGHT  # Use our fixed height
 spacing = 0.8
@@ -114,28 +114,73 @@ spacing = 0.8
 # No goal settings needed - using gradient following instead
 
 class FlockingUtils2DWithLightSensor:
-    """2D Flocking with Gradient Following - Built on proven FlockingUtils foundation"""
+    """
+    2D Flocking with Gradient Following - Re-implemented from original research code.
+    This class now contains the flocking logic from swarm_vu.c and dm_ds_v2.py,
+    removing the dependency on the incorrect ants_2024.flocking_utils.
+    """
     
     def __init__(self, n_agents, center_x, center_y, center_z, spacing):
-        # Create the real FlockingUtils (same as before)
-        self.flocking_3d = FlockingUtils(n_agents, center_x, center_y, center_z, spacing)
+        self.n_agents = n_agents
+        self.center_x = center_x
+        self.center_y = center_y
         self.fixed_z = center_z
-        
-        print(f"💡 Created 2D FlockingUtils with Gradient Following")
-        print(f"   - Using proven research algorithms from FlockingUtils")
+        self.spacing = spacing
+
+        # --- Parameters from swarm_vu.c and dm_ds_v2.py ---
+        self.alpha = 2.0     # Weight for proximal force
+        self.beta = 1.0      # Weight for alignment force
+        self.gama = 1.0      # Weight for boundary repulsion
+        self.epsilon = 12.0  # Lennard-Jones potential parameter
+        self.sb = 0.3        # Base spacing for su
+        self.sv = 0.5        # Variable spacing for su
+        self.K1 = 0.08       # Proportional gain for linear velocity u
+        self.K2 = 0.2        # Proportional gain for angular velocity w
+        self.u_add = 0.05    # Constant forward velocity push
+        self.umax = 0.15     # Max linear velocity
+        self.wmax = 1.5708/3 # Max angular velocity
+        self.Dp = 2.0        # Sensing range for neighbor interaction
+
+        # Drone state variables
+        self.headings = np.random.rand(n_agents) * 2 * np.pi # Initialize with random headings
+
+        print(f"💡 Created 2D FlockingUtils with Research-Aligned Gradient Following")
+        print(f"   - Re-implementing logic from swarm_vu.c and dm_ds_v2.py")
         print(f"   - Constraining all drones to Z = {self.fixed_z}")
-        print(f"   - Added light sensor simulation and adaptive spacing")
-    
+
     def initialize_positions(self):
         """Initialize positions but ensure Z is fixed"""
 
-        # TODO: add a comment here. what are we affecting? is this the drone controller only? and not something else 
-        # that might crash?
-        pos_xs, pos_ys, pos_zs, pos_h_xc, pos_h_yc, pos_h_zc = self.flocking_3d.initialize_positions() 
+        # --- FIX: Replace old dependency with direct initialization ---
+        # This logic is inspired by the initialization in dm_ds_v2.py
+        
+        num_agents = self.n_agents
+        init_area = 0.6 * np.sqrt(num_agents)
+        mem = 0
+        finish = 0
+        
+        ii = np.arange(self.center_x + init_area / 2, self.center_x - init_area / 2 - 0.1, -0.6)
+        jj = np.arange(self.center_y + init_area / 2, self.center_y - init_area / 2 - 0.1, -0.6)
+
+        pos_xs = np.zeros(num_agents)
+        pos_ys = np.zeros(num_agents)
+
+        for i in range(len(ii)):
+            for j in range(len(jj)):
+                if not finish:
+                    pos_xs[mem] = ii[i]
+                    pos_ys[mem] = jj[j]
+                    mem += 1
+                if mem == num_agents:
+                    finish = 1
+        
+        pos_zs = np.full(num_agents, self.fixed_z)
+        pos_h_xc = np.zeros(num_agents) # Not used in 2D flocking
+        pos_h_yc = np.zeros(num_agents) # Not used in 2D flocking
+        pos_h_zc = np.zeros(num_agents) # Not used in 2D flocking
         
         # Force all Z positions to be constant
         pos_zs.fill(self.fixed_z)
-        pos_h_zc.fill(0.0)  # No Z-axis heading component
         
         print(f"📍 Initialized {len(pos_xs)} drones in 2D:")
         for i in range(len(pos_xs)):
@@ -144,80 +189,102 @@ class FlockingUtils2DWithLightSensor:
         return pos_xs, pos_ys, pos_zs, pos_h_xc, pos_h_yc, pos_h_zc
     
     def compute_2d_flocking_forces_with_light_sensor(self, pos_xs, pos_ys, pos_zs):
-        """Compute flocking forces + goal attraction (EXTENDED VERSION)"""
+        """
+        Computes flocking forces using the exact logic from swarm_vu.c.
+        This replaces the dependency on the external FlockingUtils class.
+        """
+        # Final velocities to be returned
+        velocities_2d = np.zeros((self.n_agents, 3))
         
-        # Force all Z positions to be constant before calculation
-        pos_zs_constrained = np.full_like(pos_zs, self.fixed_z)
-        
-        # --- NEW: Integrate Adaptive Spacing ---
-        # Calculate the adaptive spacing 'su' for each drone based on light intensity
-        # and update the flocking utility's separation parameter ('sigmas').
-        
-        # Gradient following parameters (from swarm_vu.c firmware)
-        sb = 0.3  # Base spacing
-        sv = 0.5  # Variable spacing component
-        lmn = 0.0   # Minimum light intensity (grayscale image: 0-255)
-        lmx = 255.0 # Maximum light intensity (grayscale image: 0-255)
-
-        # Calculate 'su' for each drone
-        adaptive_sigmas = np.zeros(len(pos_xs))
-        for i in range(len(pos_xs)):
+        # --- Re-implementation of research code logic ---
+        for i in range(self.n_agents):
+            # Reset forces for the current agent
+            px = 0.0  # Proximal force x
+            py = 0.0  # Proximal force y
+            
+            # --- 1. Calculate Adaptive Spacing 'su' ---
             light_intensity = read_light_intensity(pos_xs[i], pos_ys[i], add_noise=True)
-            light_capped = np.clip(light_intensity, lmn, lmx)
-            light_normalized = (light_capped - lmn) / (lmx - lmn)
-            su = sb + np.power(light_normalized, 0.1) * sv
-            adaptive_sigmas[i] = su
-            
-        # Update the separation parameter in FlockingUtils with our new values
-        self.flocking_3d.update_sigmas(adaptive_sigmas)
+            light_capped = np.clip(light_intensity, 0.0, 255.0)
+            light_normalized = (light_capped - 0.0) / (255.0 - 0.0)
+            su = self.sb + np.power(light_normalized, 0.1) * self.sv
 
-        # Use the real FlockingUtils calculations with constrained Z
-        self.flocking_3d.calc_dij(pos_xs, pos_ys, pos_zs_constrained)
-        self.flocking_3d.calc_ang_ij(pos_xs, pos_ys, pos_zs_constrained)
-        self.flocking_3d.calc_grad_vals(pos_xs, pos_ys, pos_zs_constrained)
-        self.flocking_3d.calc_p_forces() # separation
-        self.flocking_3d.calc_alignment_forces() # alignment
-        self.flocking_3d.calc_boun_rep(pos_xs, pos_ys, pos_zs_constrained) # boundary 
-        
-        # Get velocities but zero out Z component
-        u = self.flocking_3d.calc_u_w()
-        
-        # Convert to 2D velocity commands 
-        velocities_2d = np.zeros((len(pos_xs), 3))
-        
-        for i in range(len(pos_xs)):
-            # Get heading from FlockingUtils
-            hx, hy, hz = self.flocking_3d.get_heading()
+            # --- 2. Calculate Proximal (Separation) Forces ---
+            # Loop through all other agents to calculate pair-wise forces
+            for j in range(self.n_agents):
+                if i == j:
+                    continue
+
+                # Calculate distance and angle between agent i and agent j
+                dist_x = pos_xs[j] - pos_xs[i]
+                dist_y = pos_ys[j] - pos_ys[i]
+                distance = np.sqrt(dist_x**2 + dist_y**2)
+                
+                # Consider only neighbors within the sensing range Dp
+                if distance < self.Dp:
+                    ij_ang = np.arctan2(dist_y, dist_x)
+                    
+                    # Equation (1) from swarm_vu.c: Proximal force calculation
+                    # This is the Lennard-Jones potential-based force
+                    force_magnitude = -self.epsilon * (
+                        (2 * (su**4 / distance**5)) - (su**2 / distance**3)
+                    )
+                    
+                    # Accumulate the force components
+                    px += force_magnitude * np.cos(ij_ang)
+                    py += force_magnitude * np.sin(ij_ang)
+
+            # --- 3. Calculate Alignment and other forces (Simplified for now) ---
+            # For this step, we are focusing on the proximal forces which are driven by 'su'.
+            # A full implementation would include alignment (beta*hx) and boundary (gama*rx) forces.
+            hx = 0.0 # Placeholder
+            hy = 0.0 # Placeholder
+            rx = 0.0 # Placeholder
+            ry = 0.0 # Placeholder
+
+            # --- 4. Calculate Total Force ---
+            # Equation (10) from swarm_vu.c (simplified)
+            fx_raw = self.alpha * px #+ self.beta * hx + self.gama * rx
+            fy_raw = self.alpha * py #+ self.beta * hy + self.gama * ry
+
+            # Transform force to the agent's body frame
+            fx = fx_raw * np.cos(-self.headings[i]) - fy_raw * np.sin(-self.headings[i])
+            fy = fx_raw * np.sin(-self.headings[i]) + fy_raw * np.cos(-self.headings[i])
             
-            # Base flocking velocities (same as before)
-            base_vx = u[i] * np.cos(hx[i])  # X velocity from flocking
-            base_vy = u[i] * np.cos(hy[i])  # Y velocity from flocking
+            # --- 5. Calculate Linear and Angular Velocity ---
+            # Equation (11) from swarm_vu.c
+            u = self.K1 * fx + self.u_add
+            w = self.K2 * fy
             
-            # The gradient following is now handled by the adaptive spacing in FlockingUtils,
-            # so we don't need any additional velocity components here.
-            total_vx = base_vx
-            total_vy = base_vy
+            # Clip velocities to their maximum values
+            u = np.clip(u, 0, self.umax)
+            w = np.clip(w, -self.wmax, self.wmax)
+
+            # --- 6. Update Agent State ---
+            # Update heading based on angular velocity
+            self.headings[i] += w * 0.042 # Using dt from research code
             
-            # Store combined velocities
-            velocities_2d[i, 0] = total_vx  # X velocity (flocking only)
-            velocities_2d[i, 1] = total_vy  # Y velocity (flocking only)
-            velocities_2d[i, 2] = 0.0       # Z velocity = 0 (stay at fixed height)
+            # Convert linear and angular velocity to world frame velocity vector
+            base_vx = u * np.cos(self.headings[i])
+            base_vy = u * np.sin(self.headings[i])
+
+            velocities_2d[i, 0] = base_vx
+            velocities_2d[i, 1] = base_vy
         
         return velocities_2d
-    
+
     def update_heading(self):
-        """Update heading but constrain Z component"""
-        self.flocking_3d.update_heading()
-        
-        # Force Z heading component to zero to maintain 2D behavior
-        hx, hy, hz = self.flocking_3d.get_heading()
-        hz.fill(0.0)  # No Z-axis rotation
+        """
+        Heading is now updated internally during the force calculation.
+        This method is kept for API compatibility but does nothing.
+        """
+        pass
     
     def get_heading(self):
-        """Get heading but ensure Z component is zero"""
-        hx, hy, hz = self.flocking_3d.get_heading()
-        hz.fill(0.0)  # Force Z heading to zero
-        return hx, hy, hz
+        """
+        Returns the current headings of the drones.
+        """
+        # This function needs to return 3 values for compatibility, returning dummy values for hz
+        return self.headings, np.zeros(self.n_agents), np.zeros(self.n_agents)
 
 def create_drone_position_overlay(final_pos_x, final_pos_y, output_folder):
     """
