@@ -420,8 +420,9 @@ def run(duration_sec=DURATION_SEC):
     
     # Set performance mode (change this to "fast" for maximum speed!)
     # set_performance_mode("fast")  # Options: "fast", "balanced", "accurate"
-    set_performance_mode("headless_accurate")
-    
+    # set_performance_mode("headless_accurate")
+    set_performance_mode("accurate")
+
     # Create 2D wrapper with gradient following capability
     f_util = FlockingUtils2DWithLightSensor(
         n_agents=NUM_DRONES,
@@ -567,6 +568,8 @@ def run(duration_sec=DURATION_SEC):
 
         # Render (NO SYNC - maximum speed!)
         env.render()
+        if DEFAULT_GUI and not ENABLE_HEADLESS_MODE:
+            sync(i, START, env.CTRL_TIMESTEP)
 
     # Cleanup
     env.close()
