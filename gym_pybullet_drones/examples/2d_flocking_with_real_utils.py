@@ -16,6 +16,7 @@ from gym_pybullet_drones.control.DSLPIDControl import DSLPIDControl
 from gym_pybullet_drones.utils.utils import sync, str2bool
 from gym_pybullet_drones.utils.Logger import Logger
 from ants_2024.flocking_utils import FlockingUtils
+import glob
 
 # Gradient Map Configuration - Step 1: Infrastructure Setup
 # Inspired by: DynamicSimulationGradFollow/Dynamic Simulaton/dm_ds_v2.py
@@ -25,7 +26,11 @@ from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
 
 # Gradient map settings (matching dm_ds_v2.py approach)
-GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/Tugay_Gradient_Pybullet/DynamicSimulationGradFollow/Dynamic Simulaton/linear_4x65.png"
+GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/linear_4x65.png"
+# GRADIENT_MAP_PATH = "gym-pybullet-drones-3DAE/maps_gradient/parabolic_funnel.png"
+# GRADIENT_MAP_PATH = "gym-pybullet-drones-3DAE/maps_gradient/parabolic_funnel_inverted.png"
+# GRADIENT_MAP_PATH = ""
+# GRADIENT_MAP_PATH = "gym-pybullet-drones-3DAE/maps_gradient/sine_wave_nice_inverted.png"
 WORLD_SIZE_X = 6.5  # meters (matches dm_ds_v2.py)
 WORLD_SIZE_Y = 4.0  # meters (matches dm_ds_v2.py)
 
@@ -99,6 +104,64 @@ DEFAULT_SIMULATION_FREQ_HZ = 240
 DEFAULT_CONTROL_FREQ_HZ = 48
 DEFAULT_OUTPUT_FOLDER = 'results_2d_1'
 DURATION_SEC = 120
+
+# Performance optimization configuration
+ENABLE_HEADLESS_MODE = True   # Set to True for maximum speed (no GUI)
+SIMULATION_SPEEDUP = 1.0      # Keep at 1.0 - we'll optimize differently
+
+# Frequency optimization (can be adjusted for speed vs accuracy tradeoff)
+OPTIMIZED_SIMULATION_FREQ_HZ = 120  # Reduced from 240 for better performance
+OPTIMIZED_CONTROL_FREQ_HZ = 24      # Reduced from 48 for better performance
+
+# Performance mode configuration
+PERFORMANCE_MODES = {
+    "accurate": {
+        "headless": False,
+        "sim_freq": 240,
+        "ctrl_freq": 48
+    },
+    "balanced": {
+        "headless": False,
+        "sim_freq": 120,
+        "ctrl_freq": 24
+    },
+    "fast": {
+        "headless": True,
+        "sim_freq": 120,
+        "ctrl_freq": 24
+    },
+    "headless_accurate": {
+        "headless": True,
+        "sim_freq": 240,
+        "ctrl_freq": 48
+    }
+}
+
+# Current performance mode settings (will be set by set_performance_mode())
+CURRENT_MODE_SETTINGS = PERFORMANCE_MODES["accurate"]  # Default
+
+def set_performance_mode(mode="accurate"):
+    """
+    Set performance mode for simulation.
+    
+    Args:
+        mode: "accurate" (GUI, high freq), "balanced" (GUI, lower freq), or "fast" (headless, lower freq)
+    """
+    global CURRENT_MODE_SETTINGS, ENABLE_HEADLESS_MODE, OPTIMIZED_SIMULATION_FREQ_HZ, OPTIMIZED_CONTROL_FREQ_HZ
+    
+    if mode not in PERFORMANCE_MODES:
+        print(f"⚠️  Unknown mode '{mode}', using 'accurate'")
+        mode = "accurate"
+    
+    CURRENT_MODE_SETTINGS = PERFORMANCE_MODES[mode]
+    ENABLE_HEADLESS_MODE = CURRENT_MODE_SETTINGS["headless"]
+    OPTIMIZED_SIMULATION_FREQ_HZ = CURRENT_MODE_SETTINGS["sim_freq"]
+    OPTIMIZED_CONTROL_FREQ_HZ = CURRENT_MODE_SETTINGS["ctrl_freq"]
+    
+    print(f"🎯 Performance mode set to: {mode.upper()}")
+    print(f"   - Headless: {ENABLE_HEADLESS_MODE}")
+    print(f"   - Simulation freq: {OPTIMIZED_SIMULATION_FREQ_HZ} Hz")
+    print(f"   - Control freq: {OPTIMIZED_CONTROL_FREQ_HZ} Hz")
 
 NUM_DRONES = 5
 FIXED_HEIGHT = 1.0  # All drones stay at this Z height
@@ -353,6 +416,11 @@ def run(duration_sec=DURATION_SEC):
     print("=== 2D Flocking with Gradient Following (Built on REAL FlockingUtils) ===")
     print("This extends the proven FlockingUtils foundation")
     print("by adding light sensor simulation and gradient following behavior!")
+
+    
+    # Set performance mode (change this to "fast" for maximum speed!)
+    # set_performance_mode("fast")  # Options: "fast", "balanced", "accurate"
+    set_performance_mode("headless_accurate")
     
     # Create 2D wrapper with gradient following capability
     f_util = FlockingUtils2DWithLightSensor(
@@ -369,7 +437,7 @@ def run(duration_sec=DURATION_SEC):
     INIT_XYZ[:, 2] = pos_zs  # All should be FIXED_HEIGHT
     INIT_RPY = np.array([[.0, .0, .0] for _ in range(NUM_DRONES)])
 
-    # Create environment (same as 3D version!)
+    # Create environment with performance optimizations
     env = CtrlAviary(
         drone_model=DEFAULT_DRONES,
         num_drones=NUM_DRONES,
@@ -377,28 +445,36 @@ def run(duration_sec=DURATION_SEC):
         initial_rpys=INIT_RPY,
         physics=DEFAULT_PHYSICS,
         neighbourhood_radius=10,
-        pyb_freq=DEFAULT_SIMULATION_FREQ_HZ,
-        ctrl_freq=DEFAULT_CONTROL_FREQ_HZ,
-        gui=DEFAULT_GUI,
+        pyb_freq=OPTIMIZED_SIMULATION_FREQ_HZ,  # Use optimized frequency
+        ctrl_freq=OPTIMIZED_CONTROL_FREQ_HZ,    # Use optimized frequency
+        gui=DEFAULT_GUI and not ENABLE_HEADLESS_MODE,  # Disable GUI in headless mode
         user_debug_gui=False
     )
 
-    # to remove the shadows
-    p.configureDebugVisualizer(p.COV_ENABLE_SHADOWS, 0)
-
-    # Set top-down camera view for 2D visualization
-    p.resetDebugVisualizerCamera(
-        cameraDistance=8,
-        cameraYaw=0,
-        cameraPitch=-89,  # Look straight down
-        cameraTargetPosition=[3, 2.5, FIXED_HEIGHT]
-    )
+    # PyBullet performance optimizations
+    if not ENABLE_HEADLESS_MODE:
+        # Remove shadows for better performance
+        p.configureDebugVisualizer(p.COV_ENABLE_SHADOWS, 0)
+        
+        # Disable unnecessary visualizations
+        p.configureDebugVisualizer(p.COV_ENABLE_TINY_RENDERER, 0)
+        p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 1)
+        
+        # Set top-down camera view for 2D visualization
+        p.resetDebugVisualizerCamera(
+            cameraDistance=8,
+            cameraYaw=0,
+            cameraPitch=-89,  # Look straight down
+            cameraTargetPosition=[3, 2.5, FIXED_HEIGHT]
+        )
+    else:
+        print("🚀 Running in HEADLESS mode for maximum speed!")
 
     # Create controllers (same as always!)
     ctrl = [DSLPIDControl(drone_model=DEFAULT_DRONES) for i in range(NUM_DRONES)]
 
     #### Initialize the logger #################################
-    logger = Logger(logging_freq_hz=DEFAULT_CONTROL_FREQ_HZ,
+    logger = Logger(logging_freq_hz=OPTIMIZED_CONTROL_FREQ_HZ,
                     num_drones=NUM_DRONES,
                     output_folder=DEFAULT_OUTPUT_FOLDER,
                     )
@@ -407,9 +483,21 @@ def run(duration_sec=DURATION_SEC):
     print("- Q: Quit simulation")
     print("🔍 Watch how drones balance flocking behavior with gradient following!")
     print("📈 Drones will naturally aggregate in areas with higher light intensity")
+    if ENABLE_HEADLESS_MODE:
+        print("🚀 HEADLESS MODE: Maximum speed, no GUI rendering")
+    else:
+        print("🖥️  GUI MODE: Visual rendering enabled")
 
     START = time.time()
     action = np.zeros((NUM_DRONES, 4))
+    
+    # Calculate expected simulation time
+    expected_simulation_time = duration_sec
+    print(f"⏱️  Expected simulation duration: {expected_simulation_time} seconds")
+    
+    # Simple data collection - just time and average light intensity
+    time_data = []
+    avg_light_intensity_data = []
 
     # Main simulation loop - gradient following
     for i in range(0, int(duration_sec * env.CTRL_FREQ)):
@@ -441,15 +529,20 @@ def run(duration_sec=DURATION_SEC):
         pos_hxs, pos_hys, pos_hzs = f_util.get_heading()
         f_util.update_heading()
         
+        # Collect light intensity data every simulation step
+        current_time = i / env.CTRL_FREQ
+        light_readings = [read_light_intensity(pos_x[j], pos_y[j], add_noise=False) for j in range(NUM_DRONES)]
+        avg_light_intensity = np.mean(light_readings)
+        
+        # Store data
+        time_data.append(current_time)
+        avg_light_intensity_data.append(avg_light_intensity)
+        
         # Show progress every 3 seconds
         if i % (env.CTRL_FREQ * 3) == 0:
-            # f_util.plot_swarm(pos_x, pos_y, pos_z, pos_hxs, pos_hys, pos_hzs)
+# f_util.plot_swarm(pos_x, pos_y, pos_z, pos_hxs, pos_hys, pos_hzs)
             # Print light intensity readings for debugging
-            light_readings = [read_light_intensity(pos_x[j], pos_y[j], add_noise=False) for j in range(NUM_DRONES)]
-            avg_light_intensity = np.mean(light_readings)
-            
-            print(f"⏱️  Time: {i/env.CTRL_FREQ:.1f}s | 💡 Avg light intensity: {avg_light_intensity:.1f}")
-            print(f"    💡 Individual readings: {[f'{reading:.1f}' for reading in light_readings]}")
+            print(f"⏱️  Time: {current_time:.1f}s | 💡 Avg light intensity: {avg_light_intensity:.1f}")
 
         # Apply control for each drone (same structure as before)
         for j in range(NUM_DRONES):
@@ -472,26 +565,56 @@ def run(duration_sec=DURATION_SEC):
                 target_rpy=np.array([0, 0, 0])
             )
 
-        # Render and sync (same as always!)
+        # Render (NO SYNC - maximum speed!)
         env.render()
-        if DEFAULT_GUI:
-            sync(i, START, env.CTRL_TIMESTEP)
 
     # Cleanup
     env.close()
     
+    # Calculate timing statistics
+    END = time.time()
+    actual_real_time = END - START
+    
+    print(f"\n⏱️  TIMING ANALYSIS:")
+    print(f"   Simulation time: {expected_simulation_time:.1f} seconds")
+    print(f"   Real-world time: {actual_real_time:.1f} seconds")
+    
     # Create overlay of final positions
     create_drone_position_overlay(pos_x, pos_y, DEFAULT_OUTPUT_FOLDER)
     
-    # Final statistics
+    # Plot average light intensity over time
+    print(f"\n📊 Creating light intensity plot...")
+    plt.figure(figsize=(10, 6))
+    plt.plot(time_data, avg_light_intensity_data, linewidth=2, color='blue')
+    plt.xlabel('Time (s)', fontsize=12)
+    plt.ylabel('Average Light Intensity', fontsize=12)
+    plt.title('Swarm Average Light Intensity Over Time', fontsize=14, fontweight='bold')
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    
+    # Save the plot with absolute path displayed
+    os.makedirs(DEFAULT_OUTPUT_FOLDER, exist_ok=True)
+    plot_path = os.path.join(DEFAULT_OUTPUT_FOLDER, "light_intensity_plot.png")
+    plot_path_absolute = os.path.abspath(plot_path)  # Get absolute path
+    plt.savefig(plot_path_absolute, dpi=150)
+    print(f"📊 Plot saved to: {plot_path_absolute}")
+    
+    # Display the plot
+    plt.show()
+    
+    #Final sstatistics
     final_light_readings = [read_light_intensity(pos_x[j], pos_y[j], add_noise=False) for j in range(NUM_DRONES)]
     avg_final_light = np.mean(final_light_readings)
     
     print(f"\n💡 Gradient following simulation completed!")
-    print(f"📊 Final light intensities: {[f'{reading:.1f}' for reading in final_light_readings]}")
     print(f"📈 Average final light intensity: {avg_final_light:.1f}")
-    print(f"✅ Successfully combined FlockingUtils research algorithms with gradient following!")
-    print(f"🚀 Drones naturally aggregated based on local light intensity readings!")
 
 if __name__ == "__main__":
-    run()
+    # Simple command line argument parsing
+    parser = argparse.ArgumentParser(description='2D Flocking with Gradient Following')
+    parser.add_argument('--duration', type=int, default=120,
+                       help='Simulation duration in seconds (default: 120)')
+    
+    args = parser.parse_args()
+    
+    run(duration_sec=args.duration)
