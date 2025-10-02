@@ -119,7 +119,7 @@ DEFAULT_CONTROL_FREQ_HZ = 48
 # - Step 6-9: Apply same motor commands
 # - Step 10: NEW control decision + motor update
 
-DEFAULT_OUTPUT_FOLDER = 'results_2d_1'
+DEFAULT_OUTPUT_FOLDER = '/Users/kiandrew/Desktop/Capstone/PyBullet/results_2d_1'
 DURATION_SEC = 120
 
 # Performance optimization configuration

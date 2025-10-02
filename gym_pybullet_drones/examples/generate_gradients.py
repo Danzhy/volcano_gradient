@@ -4,8 +4,11 @@ from noise import pnoise2
 import os
 
 # --- Configuration ---
-WIDTH = 650
-HEIGHT = 400
+# Dimensions calculated from: world_size / step_size (step_size = 0.04 from dm_ds_v2.py)
+# WORLD_SIZE_X = 6.5m -> 6.5 / 0.04 = 162.5 ≈ 163 pixels
+# WORLD_SIZE_Y = 4.0m -> 4.0 / 0.04 = 100 pixels
+WIDTH = 163  # Changed from 650 to match coordinate mapping
+HEIGHT = 100  # Changed from 400 to match coordinate mapping
 OUTPUT_DIR = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient"
 
 # Ensure the output directory exists
