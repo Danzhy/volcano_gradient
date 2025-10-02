@@ -100,8 +100,24 @@ DEFAULT_PHYSICS = Physics("pyb")
 DEFAULT_GUI = True
 DEFAULT_PLOT = False
 DEFAULT_USER_DEBUG_GUI = False
-DEFAULT_SIMULATION_FREQ_HZ = 240
+# PyBullet calculates physics 120 times per second
+# Each physics step = 1/120 = 0.0083 seconds of simulated time
+# Higher frequency = more accurate physics (collision detection, aerodynamics)
+DEFAULT_SIMULATION_FREQ_HZ = 240 
+# Your controller runs 24 times per second
+# Drones make decisions every 1/24 = 0.042 seconds
+# This is when they:
+# Read light intensity
+# Calculate flocking forces
+# Update motor commands
 DEFAULT_CONTROL_FREQ_HZ = 48
+# 24 Hz control on 120 Hz simulation:
+# - Every 5 physics steps = 1 control update
+# - Step 0-4: Apply same motor commands
+# - Step 5: NEW control decision + motor update
+# - Step 6-9: Apply same motor commands
+# - Step 10: NEW control decision + motor update
+
 DEFAULT_OUTPUT_FOLDER = 'results_2d_1'
 DURATION_SEC = 120
 
