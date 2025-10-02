@@ -26,7 +26,8 @@ from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
 
 # Gradient map settings (matching dm_ds_v2.py approach)
-GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/linear_4x65.png"
+# GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/linear_4x65.png"
+GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/linear_gradient.png"
 # GRADIENT_MAP_PATH = "gym-pybullet-drones-3DAE/maps_gradient/parabolic_funnel.png"
 # GRADIENT_MAP_PATH = "gym-pybullet-drones-3DAE/maps_gradient/parabolic_funnel_inverted.png"
 # GRADIENT_MAP_PATH = ""
@@ -436,8 +437,8 @@ def run(duration_sec=DURATION_SEC):
     
     # Set performance mode (change this to "fast" for maximum speed!)
     # set_performance_mode("fast")  # Options: "fast", "balanced", "accurate"
-    # set_performance_mode("headless_accurate")
-    set_performance_mode("accurate")
+    set_performance_mode("headless_accurate")
+    # set_performance_mode("accurate")
 
     # Create 2D wrapper with gradient following capability
     f_util = FlockingUtils2DWithLightSensor(

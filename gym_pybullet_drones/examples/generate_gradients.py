@@ -6,7 +6,7 @@ import os
 # --- Configuration ---
 WIDTH = 650
 HEIGHT = 400
-OUTPUT_DIR = "maps_gradient"
+OUTPUT_DIR = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient"
 
 # Ensure the output directory exists
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -34,6 +34,16 @@ def normalize_and_save(gradient, filename, invert_colors=False):
     output_path = os.path.join(OUTPUT_DIR, filename)
     img.save(output_path)
     print(f"✅ Gradient saved to: {output_path}")
+
+
+def generate_linear_gradient(width, height):
+    """Generates a simple linear gradient from dark (left) to bright (right)."""
+    print("Generating linear gradient...")
+    # Create a linear gradient from 0 to 1 across the width
+    gradient = np.linspace(0, 1, width)
+    # Tile it vertically to fill the entire height
+    gradient = np.tile(gradient, (height, 1))
+    return gradient
 
 
 def generate_parabolic_funnel(width, height):
@@ -192,6 +202,11 @@ def generate_ramped_sine_with_banks(width, height):
 
 if __name__ == "__main__":
     print("--- Generating Gradient Maps ---")
+
+    # Generate and save the linear gradient
+    linear_gradient = generate_linear_gradient(WIDTH, HEIGHT)
+    normalize_and_save(linear_gradient, "linear_gradient.png")
+    normalize_and_save(linear_gradient, "linear_gradient_inverted.png", invert_colors=True)
 
     # Generate and save the parabolic funnel
     parabolic_gradient = generate_parabolic_funnel(WIDTH, HEIGHT)
