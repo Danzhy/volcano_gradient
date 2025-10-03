@@ -27,10 +27,9 @@ import matplotlib.pyplot as plt
 
 # Gradient map settings (matching dm_ds_v2.py approach)
 # GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/linear_4x65.png"
-GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/linear_gradient.png"
+# GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/linear_gradient.png"
 # GRADIENT_MAP_PATH = "gym-pybullet-drones-3DAE/maps_gradient/parabolic_funnel.png"
-# GRADIENT_MAP_PATH = "gym-pybullet-drones-3DAE/maps_gradient/parabolic_funnel_inverted.png"
-# GRADIENT_MAP_PATH = ""
+GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/parabolic_funnel.png"
 # GRADIENT_MAP_PATH = "gym-pybullet-drones-3DAE/maps_gradient/sine_wave_nice_inverted.png"
 WORLD_SIZE_X = 6.5  # meters (matches dm_ds_v2.py)
 WORLD_SIZE_Y = 4.0  # meters (matches dm_ds_v2.py)
@@ -120,7 +119,8 @@ DEFAULT_CONTROL_FREQ_HZ = 48
 # - Step 10: NEW control decision + motor update
 
 DEFAULT_OUTPUT_FOLDER = '/Users/kiandrew/Desktop/Capstone/PyBullet/results_2d_1'
-DURATION_SEC = 120
+# DURATION_SEC = 120
+DURATION_SEC = 240
 
 # Performance optimization configuration
 ENABLE_HEADLESS_MODE = True   # Set to True for maximum speed (no GUI)
@@ -285,7 +285,11 @@ class FlockingUtils2DWithLightSensor:
             # --- 1. Calculate Adaptive Spacing 'su' ---
             light_intensity = read_light_intensity(pos_xs[i], pos_ys[i], add_noise=True)
             light_capped = np.clip(light_intensity, 0.0, 255.0)
-            light_normalized = (light_capped - 0.0) / (255.0 - 0.0)
+            # INVERTED: High light → low normalized value → small su → drones aggregate
+            # Low light → high normalized value → large su → drones spread out
+            # Result: Swarm follows from BRIGHT to DARK
+            light_normalized = (255.0 - light_capped) / 255.0
+            # calculate adaptive spacing: lower light = larger spacing
             su = self.sb + np.power(light_normalized, 0.1) * self.sv
 
             # --- 2. Calculate Proximal (Separation) Forces ---
@@ -614,7 +618,7 @@ def run(duration_sec=DURATION_SEC):
     
     # Save the plot with absolute path displayed
     os.makedirs(DEFAULT_OUTPUT_FOLDER, exist_ok=True)
-    plot_path = os.path.join(DEFAULT_OUTPUT_FOLDER, "light_intensity_plot.png")
+    plot_path = os.path.join(DEFAULT_OUTPUT_FOLDER, "bright_to_dark_intensity_plot.png")
     plot_path_absolute = os.path.abspath(plot_path)  # Get absolute path
     plt.savefig(plot_path_absolute, dpi=150)
     print(f"📊 Plot saved to: {plot_path_absolute}")
