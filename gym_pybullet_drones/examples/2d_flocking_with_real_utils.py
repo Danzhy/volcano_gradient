@@ -285,6 +285,7 @@ class FlockingUtils2DWithLightSensor:
             # --- 1. Calculate Adaptive Spacing 'su' ---
             light_intensity = read_light_intensity(pos_xs[i], pos_ys[i], add_noise=True)
             light_capped = np.clip(light_intensity, 0.0, 255.0)
+            # light_normalized = (light_capped - 0.0) / (255.0 - 0.0)
             # INVERTED: High light → low normalized value → small su → drones aggregate
             # Low light → high normalized value → large su → drones spread out
             # Result: Swarm follows from BRIGHT to DARK
