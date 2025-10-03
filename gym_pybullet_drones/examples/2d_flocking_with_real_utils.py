@@ -30,6 +30,8 @@ import matplotlib.pyplot as plt
 # GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/linear_gradient.png"
 # GRADIENT_MAP_PATH = "gym-pybullet-drones-3DAE/maps_gradient/parabolic_funnel.png"
 GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/parabolic_funnel.png"
+GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/sine_wave_ramped_with_banks.png"
+GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/path_example_exponential.png"
 # GRADIENT_MAP_PATH = "gym-pybullet-drones-3DAE/maps_gradient/sine_wave_nice_inverted.png"
 WORLD_SIZE_X = 6.5  # meters (matches dm_ds_v2.py)
 WORLD_SIZE_Y = 4.0  # meters (matches dm_ds_v2.py)
@@ -120,7 +122,7 @@ DEFAULT_CONTROL_FREQ_HZ = 48
 
 DEFAULT_OUTPUT_FOLDER = '/Users/kiandrew/Desktop/Capstone/PyBullet/results_2d_1'
 # DURATION_SEC = 120
-DURATION_SEC = 240
+DURATION_SEC = 120
 
 # Performance optimization configuration
 ENABLE_HEADLESS_MODE = True   # Set to True for maximum speed (no GUI)
@@ -186,8 +188,8 @@ FIXED_HEIGHT = 1.0  # All drones stay at this Z height
 # p.setRealTimeSumiulation(0)
 
 # Starting position for swarm
-init_center_x = 5.0
-init_center_y = 1.5
+init_center_x = 1.0
+init_center_y = 2.5
 init_center_z = FIXED_HEIGHT  # Use our fixed height
 spacing = 0.8
 

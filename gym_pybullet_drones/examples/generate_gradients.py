@@ -39,6 +39,42 @@ def normalize_and_save(gradient, filename, invert_colors=False):
     print(f"✅ Gradient saved to: {output_path}")
 
 
+def thicken_path(path_function, width, height, thickness=0.05, invert=False):
+    """
+    Thickens any path/curve by creating an exponential falloff around it.
+    
+    Args:
+        path_function: A function that takes x coordinates (0 to width) and returns y coordinates
+        width: Width of the output image
+        height: Height of the output image
+        thickness: Controls the thickness of the path (smaller = thicker, typical range: 0.01-0.1)
+        invert: If True, the path is dark (0.0) and surroundings are bright (1.0)
+                If False, the path is bright (1.0) and surroundings are dark (0.0)
+    
+    Returns:
+        A 2D numpy array with values between 0 and 1
+    """
+    print(f"Thickening path with thickness parameter: {thickness}, invert: {invert}")
+    
+    # Create coordinate grids
+    y, x = np.mgrid[0:height, 0:width]
+    
+    # Calculate the path y-coordinates for each x position
+    path_y = path_function(x)
+    
+    # Calculate the distance from each point to the path
+    distance = np.abs(y - path_y)
+    
+    # Apply exponential falloff to create thickness
+    thickened = np.exp(-thickness * distance)
+    
+    # Invert if requested (path becomes dark instead of bright)
+    if invert:
+        thickened = 1.0 - thickened
+    
+    return thickened
+
+
 def generate_linear_gradient(width, height):
     """Generates a simple linear gradient from dark (left) to bright (right)."""
     print("Generating linear gradient...")
@@ -102,29 +138,26 @@ def generate_noisy_flow(width, height):
 def generate_sine_wave(width, height):
     """Generates a gradient with a sine wave path that is thicker and has an increasing gradient."""
     print("Generating sine wave gradient...")
-    y, x = np.mgrid[0:height, 0:width]
-
-    # Sine wave parameters
+    
+    # Define sine wave path function
     amplitude = height / 4  # Controls the height of the wave
     frequency = 2 * np.pi / width  # Controls the number of cycles
-
-    # Sine wave equation
-    sine_wave = amplitude * np.sin(frequency * x) + height / 2
-
-    # Calculate the distance from each point to the sine wave
-    distance = np.abs(y - sine_wave)
-
-    # 1. Create a "thick" path using exponential falloff
+    
+    def sine_path(x):
+        """Returns y coordinates for sine wave at given x positions."""
+        return amplitude * np.sin(frequency * x) + height / 2
+    
+    # Use the thickening function to create the path
     thickness = 0.05  # Smaller value = thicker path
-    sine_falloff = np.exp(-thickness * distance)
-
-    # 2. Create a linear gradient to make the path brighter from left to right
+    sine_falloff = thicken_path(sine_path, width, height, thickness)
+    
+    # Create a linear gradient to make the path brighter from left to right
     linear_ramp = np.linspace(0.5, 1.0, width)  # Ramps from gray to white
     linear_grid = np.tile(linear_ramp, (height, 1))
-
-    # 3. Combine them: path brightness is modulated by the linear ramp
+    
+    # Combine them: path brightness is modulated by the linear ramp
     gradient = sine_falloff * linear_grid
-
+    
     return gradient
 
 
@@ -133,13 +166,16 @@ def generate_noisy_sine_wave(width, height):
     print("Generating noisy sine wave gradient...")
     y, x = np.mgrid[0:height, 0:width]
 
-    # --- 1. Generate the sine wave path shape ---
+    # --- 1. Define sine wave path and thicken it ---
     amplitude = height / 4
     frequency = 2 * np.pi / width
-    sine_wave = amplitude * np.sin(frequency * x) + height / 2
-    distance = np.abs(y - sine_wave)
+    
+    def sine_path(x):
+        """Returns y coordinates for sine wave at given x positions."""
+        return amplitude * np.sin(frequency * x) + height / 2
+    
     thickness = 0.05
-    sine_falloff = np.exp(-thickness * distance)
+    sine_falloff = thicken_path(sine_path, width, height, thickness)
 
     # --- 2. Generate the underlying texture (ramped noise) ---
     # Linear ramp from left to right
@@ -178,15 +214,22 @@ def generate_ramped_sine_with_banks(width, height):
     print("Generating ramped sine wave with banks...")
     y, x = np.mgrid[0:height, 0:width]
 
-    # --- 1. Define the sine wave path ---
+    # --- 1. Define sine wave path and thicken it ---
     amplitude = height / 4
     frequency = 2 * np.pi / width
-    sine_wave = amplitude * np.sin(frequency * x) + height / 2
+    
+    def sine_path(x):
+        """Returns y coordinates for sine wave at given x positions."""
+        return amplitude * np.sin(frequency * x) + height / 2
+    
+    thickness = 0.05
+    sine_falloff = thicken_path(sine_path, width, height, thickness)
+    
+    # Calculate distance for banks (recompute for clarity)
+    sine_wave = sine_path(x)
     distance_from_sine = np.abs(y - sine_wave)
 
     # --- 2. Create the ramped sine path component ---
-    thickness = 0.05
-    sine_falloff = np.exp(-thickness * distance_from_sine)
     linear_ramp = np.linspace(0.5, 1.0, width)
     linear_grid = np.tile(linear_ramp, (height, 1))
     ramped_sine_path = sine_falloff * linear_grid
@@ -201,6 +244,66 @@ def generate_ramped_sine_with_banks(width, height):
     combined_gradient = ramped_sine_path + (path_mask * banks_gradient)
 
     return combined_gradient
+
+
+def generate_custom_path_examples(width, height):
+    """
+    Demonstrates how to use thicken_path with various mathematical functions.
+    These are examples of different path equations that can be thickened.
+    """
+    print("Generating custom path examples...")
+    
+    # Example 1: Simple parabola
+    def parabola_path(x):
+        """y = 0.001 * (x - width/2)^2 + height/4"""
+        return 0.001 * (x - width / 2) ** 2 + height / 4
+    
+    # Example 2: Exponential curve
+    def exponential_path(x):
+        """Exponential growth from bottom to top"""
+        normalized_x = x / width  # Normalize to [0, 1]
+        return height * (1 - np.exp(-3 * normalized_x))
+    
+    # Example 3: Zigzag pattern
+    def zigzag_path(x):
+        """Sawtooth/zigzag pattern"""
+        period = width / 5  # 5 zigzags across the width
+        return height / 2 + (height / 4) * np.abs((x % period) / period * 2 - 1)
+    
+    # Example 4: Circular arc
+    def circular_arc_path(x):
+        """Part of a circle"""
+        center_x = width / 2
+        radius = width / 2
+        # Avoid sqrt of negative numbers
+        x_offset = x - center_x
+        valid = np.abs(x_offset) <= radius
+        result = np.full_like(x, height / 2, dtype=float)
+        result[valid] = height / 2 - np.sqrt(radius**2 - x_offset[valid]**2) * (height / (2 * radius))
+        return result
+    
+    # Generate thickened versions with dark paths
+    examples = {
+        'parabola': thicken_path(parabola_path, width, height, thickness=0.03, invert=True),
+        'exponential': thicken_path(exponential_path, width, height, thickness=0.001, invert=True),
+        'zigzag': thicken_path(zigzag_path, width, height, thickness=0.05, invert=True),
+        'circular_arc': thicken_path(circular_arc_path, width, height, thickness=0.06, invert=True),
+    }
+    
+    # Create exponential with left-to-right gradient
+    exponential_thickened = thicken_path(exponential_path, width, height, thickness=0.001, invert=True)
+    
+    # Apply linear gradient from left to right (dark to less dark)
+    linear_ramp = np.linspace(0.0, 1.0, width)  # Ramps from 0 to 1
+    linear_grid = np.tile(linear_ramp, (height, 1))
+    
+    # Blend: where path is dark (0), apply gradient; where it's bright (1), keep bright
+    # This makes the dark path gradually lighter from left to right
+    exponential_with_gradient = exponential_thickened * (1 - linear_grid * 0.5)
+    
+    examples['exponential_gradient'] = exponential_with_gradient
+    
+    return examples
 
 
 if __name__ == "__main__":
@@ -231,5 +334,11 @@ if __name__ == "__main__":
     # Generate and save the ramped sine wave with banks
     ramped_sine_with_banks = generate_ramped_sine_with_banks(WIDTH, HEIGHT)
     normalize_and_save(ramped_sine_with_banks, "sine_wave_ramped_with_banks.png", invert_colors=True)
+    
+    # Generate and save custom path examples
+    print("\n--- Generating Custom Path Examples ---")
+    custom_examples = generate_custom_path_examples(WIDTH, HEIGHT)
+    for name, gradient in custom_examples.items():
+        normalize_and_save(gradient, f"path_example_{name}.png", invert_colors=False)
 
     print("\nAll gradients generated successfully!")
