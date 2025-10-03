@@ -26,12 +26,13 @@ from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
 
 # Gradient map settings (matching dm_ds_v2.py approach)
-# GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/linear_4x65.png"
 # GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/linear_gradient.png"
 # GRADIENT_MAP_PATH = "gym-pybullet-drones-3DAE/maps_gradient/parabolic_funnel.png"
 GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/parabolic_funnel.png"
 GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/sine_wave_ramped_with_banks.png"
 GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/path_example_exponential.png"
+GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/path_example_sine_curve.png"
+GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/linear_4x65.png"
 # GRADIENT_MAP_PATH = "gym-pybullet-drones-3DAE/maps_gradient/sine_wave_nice_inverted.png"
 WORLD_SIZE_X = 6.5  # meters (matches dm_ds_v2.py)
 WORLD_SIZE_Y = 4.0  # meters (matches dm_ds_v2.py)
@@ -373,16 +374,23 @@ class FlockingUtils2DWithLightSensor:
         # This function needs to return 3 values for compatibility, returning dummy values for hz
         return self.headings, np.zeros(self.n_agents), np.zeros(self.n_agents)
 
-def create_drone_position_overlay(final_pos_x, final_pos_y, output_folder):
+def create_drone_position_overlay(final_pos_x, final_pos_y, output_folder, timestamp=None, show_plot=False):
     """
-    Overlays final drone positions on the gradient map.
+    Overlays drone positions on the gradient map.
     
     Args:
-        final_pos_x: Array of final X positions of drones.
-        final_pos_y: Array of final Y positions of drones.
+        final_pos_x: Array of X positions of drones.
+        final_pos_y: Array of Y positions of drones.
         output_folder: Directory to save the output image.
+        timestamp: Optional timestamp string for filename (e.g., "10s", "20s", "final")
+        show_plot: Whether to display the plot (default: False)
     """
-    print("\n📸 Creating overlay of final drone positions on gradient map...")
+    if timestamp is None:
+        print("\n📸 Creating overlay of final drone positions on gradient map...")
+        filename = "final_positions_overlay.png"
+    else:
+        print(f"📸 Snapshot at {timestamp}...")
+        filename = f"positions_at_{timestamp}.png"
     
     try:
         # Load the gradient map image
@@ -394,7 +402,7 @@ def create_drone_position_overlay(final_pos_x, final_pos_y, output_folder):
         grad_const_x = (len(np.arange(start=0.00, stop=WORLD_SIZE_X, step=step_size))) / WORLD_SIZE_X
         grad_const_y = (len(np.arange(start=0.00, stop=WORLD_SIZE_Y, step=step_size))) / WORLD_SIZE_Y
         
-        # Draw each drone's final position
+        # Draw each drone's position
         for i in range(len(final_pos_x)):
             pybullet_x = final_pos_x[i]
             pybullet_y = final_pos_y[i]
@@ -417,18 +425,19 @@ def create_drone_position_overlay(final_pos_x, final_pos_y, output_folder):
                 outline='white'
             )
             
-        # Save and show the image
-        output_path = os.path.join(output_folder, "final_positions_overlay.png")
+        # Save the image
+        output_path = os.path.join(output_folder, filename)
         img.save(output_path)
-        print(f"✅ Overlay saved to: {output_path}")
+        print(f"✅ Saved to: {output_path}")
         
-        # Display the image with correct orientation matching the coordinate system
-        plt.imshow(img)
-        plt.title("Final Drone Positions on Gradient Map")
-        plt.xlabel("Image Pixels (PyBullet Y -> Image X)")
-        plt.ylabel("Image Pixels (PyBullet X -> Image Y)")
-        plt.gca().invert_yaxis()  # Invert Y-axis to match PyBullet's view
-        plt.show()
+        # Display the image only if requested
+        if show_plot:
+            plt.imshow(img)
+            plt.title(f"Drone Positions on Gradient Map ({timestamp or 'Final'})")
+            plt.xlabel("Image Pixels (PyBullet Y -> Image X)")
+            plt.ylabel("Image Pixels (PyBullet X -> Image Y)")
+            plt.gca().invert_yaxis()  # Invert Y-axis to match PyBullet's view
+            plt.show()
         
     except FileNotFoundError:
         print(f"[ERROR] Could not create overlay. Gradient map not found at {GRADIENT_MAP_PATH}")
@@ -523,6 +532,15 @@ def run(duration_sec=DURATION_SEC):
     # Simple data collection - just time and average light intensity
     time_data = []
     avg_light_intensity_data = []
+    
+    # Create subfolder for position snapshots
+    snapshots_folder = os.path.join(DEFAULT_OUTPUT_FOLDER, "position_snapshots")
+    os.makedirs(snapshots_folder, exist_ok=True)
+    print(f"📁 Snapshots will be saved to: {snapshots_folder}")
+    
+    # Snapshot interval (every 10 seconds)
+    SNAPSHOT_INTERVAL = 10  # seconds
+    last_snapshot_time = -SNAPSHOT_INTERVAL  # Force first snapshot at t=0
 
     # Main simulation loop - gradient following
     for i in range(0, int(duration_sec * env.CTRL_FREQ)):
@@ -562,6 +580,12 @@ def run(duration_sec=DURATION_SEC):
         # Store data
         time_data.append(current_time)
         avg_light_intensity_data.append(avg_light_intensity)
+        
+        # Take snapshot every 10 seconds
+        if current_time - last_snapshot_time >= SNAPSHOT_INTERVAL:
+            timestamp_str = f"{int(current_time)}s"
+            create_drone_position_overlay(pos_x, pos_y, snapshots_folder, timestamp=timestamp_str, show_plot=False)
+            last_snapshot_time = current_time
         
         # Show progress every 3 seconds
         if i % (env.CTRL_FREQ * 3) == 0:
@@ -606,8 +630,10 @@ def run(duration_sec=DURATION_SEC):
     print(f"   Simulation time: {expected_simulation_time:.1f} seconds")
     print(f"   Real-world time: {actual_real_time:.1f} seconds")
     
-    # Create overlay of final positions
-    create_drone_position_overlay(pos_x, pos_y, DEFAULT_OUTPUT_FOLDER)
+    # Create overlay of final positions (save to both locations)
+    print("\n📸 Creating final position overlays...")
+    create_drone_position_overlay(pos_x, pos_y, DEFAULT_OUTPUT_FOLDER, timestamp="final", show_plot=False)
+    create_drone_position_overlay(pos_x, pos_y, snapshots_folder, timestamp="final", show_plot=True)
     
     # Plot average light intensity over time
     print(f"\n📊 Creating light intensity plot...")
