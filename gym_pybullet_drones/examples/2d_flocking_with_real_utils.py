@@ -123,7 +123,7 @@ DEFAULT_CONTROL_FREQ_HZ = 48
 
 DEFAULT_OUTPUT_FOLDER = '/Users/kiandrew/Desktop/Capstone/PyBullet/results_2d_1'
 # DURATION_SEC = 120
-DURATION_SEC = 120
+DURATION_SEC = 240
 
 # Performance optimization configuration
 ENABLE_HEADLESS_MODE = True   # Set to True for maximum speed (no GUI)
@@ -189,8 +189,8 @@ FIXED_HEIGHT = 1.0  # All drones stay at this Z height
 # p.setRealTimeSumiulation(0)
 
 # Starting position for swarm
-init_center_x = 1.0
-init_center_y = 2.5
+init_center_x = 0.5
+init_center_y = 1.0
 init_center_z = FIXED_HEIGHT  # Use our fixed height
 spacing = 0.8
 
@@ -653,20 +653,15 @@ def run(duration_sec=DURATION_SEC):
     print(f"📊 Plot saved to: {plot_path_absolute}")
     
     # Display the plot
-    plt.show()
-    
-    #Final sstatistics
-    final_light_readings = [read_light_intensity(pos_x[j], pos_y[j], add_noise=False) for j in range(NUM_DRONES)]
-    avg_final_light = np.mean(final_light_readings)
-    
+    plt.show() #Final sstatistics final_light_readings = [read_light_intensity(pos_x[j], pos_y[j], add_noise=False) for j in range(NUM_DRONES)] avg_final_light = np.mean(final_light_readings)
     print(f"\n💡 Gradient following simulation completed!")
     print(f"📈 Average final light intensity: {avg_final_light:.1f}")
 
 if __name__ == "__main__":
     # Simple command line argument parsing
     parser = argparse.ArgumentParser(description='2D Flocking with Gradient Following')
-    parser.add_argument('--duration', type=int, default=120,
-                       help='Simulation duration in seconds (default: 120)')
+    parser.add_argument('--duration', type=int, default=DURATION_SEC,
+                       help=f'Simulation duration in seconds (default: {DURATION_SEC})')
     
     args = parser.parse_args()
     
