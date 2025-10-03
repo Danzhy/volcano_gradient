@@ -282,12 +282,20 @@ def generate_custom_path_examples(width, height):
         result[valid] = height / 2 - np.sqrt(radius**2 - x_offset[valid]**2) * (height / (2 * radius))
         return result
     
+    # Example 5: Sine curve
+    def sine_curve_path(x):
+        """Simple sine wave"""
+        amplitude = height / 4
+        frequency = 2 * np.pi / width  # One complete cycle
+        return amplitude * np.sin(frequency * x) + height / 2
+    
     # Generate thickened versions with dark paths
     examples = {
         'parabola': thicken_path(parabola_path, width, height, thickness=0.03, invert=True),
         'exponential': thicken_path(exponential_path, width, height, thickness=0.001, invert=True),
         'zigzag': thicken_path(zigzag_path, width, height, thickness=0.05, invert=True),
         'circular_arc': thicken_path(circular_arc_path, width, height, thickness=0.06, invert=True),
+        'sine_curve': thicken_path(sine_curve_path, width, height, thickness=0.01, invert=True),
     }
     
     # Create exponential with left-to-right gradient
