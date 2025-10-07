@@ -653,7 +653,11 @@ def run(duration_sec=DURATION_SEC):
     print(f"📊 Plot saved to: {plot_path_absolute}")
     
     # Display the plot
-    plt.show() #Final sstatistics final_light_readings = [read_light_intensity(pos_x[j], pos_y[j], add_noise=False) for j in range(NUM_DRONES)] avg_final_light = np.mean(final_light_readings)
+    plt.show()
+    
+    # Final statistics
+    final_light_readings = [read_light_intensity(pos_x[j], pos_y[j], add_noise=False) for j in range(NUM_DRONES)]
+    avg_final_light = np.mean(final_light_readings)
     print(f"\n💡 Gradient following simulation completed!")
     print(f"📈 Average final light intensity: {avg_final_light:.1f}")
 
