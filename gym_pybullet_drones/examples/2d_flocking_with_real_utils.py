@@ -77,6 +77,9 @@ def read_light_intensity(pybullet_x, pybullet_y, add_noise=True):
     map_y = np.ceil(pybullet_x * grad_const_y)  # x->y mapping from dm_ds_v2.py
     map_x = np.ceil(pybullet_y * grad_const_x)  # y->x mapping from dm_ds_v2.py
     
+    # Invert Y-axis: PyBullet Y increases upward, but image rows increase downward
+    map_x = gradient_map.shape[0] - 1 - map_x
+    
     # Convert to integers and clip to map bounds
     map_x = np.clip(map_x.astype(int), 0, gradient_map.shape[0] - 1)
     map_y = np.clip(map_y.astype(int), 0, gradient_map.shape[1] - 1)
@@ -190,7 +193,7 @@ FIXED_HEIGHT = 1.0  # All drones stay at this Z height
 
 # Starting position for swarm
 init_center_x = 0.5
-init_center_y = 1.0
+init_center_y = 3.0
 init_center_z = FIXED_HEIGHT  # Use our fixed height
 spacing = 0.8
 
@@ -412,6 +415,9 @@ def create_drone_position_overlay(final_pos_x, final_pos_y, output_folder, times
             map_y = int(np.ceil(pybullet_x * grad_const_y))
             map_x = int(np.ceil(pybullet_y * grad_const_x))
             
+            # Invert Y-axis: PyBullet Y increases upward, but image rows increase downward
+            map_x = img.height - 1 - map_x
+            
             # Clip to image bounds to be safe
             map_x_clipped = np.clip(map_x, 0, img.height - 1)
             map_y_clipped = np.clip(map_y, 0, img.width - 1)
@@ -436,7 +442,6 @@ def create_drone_position_overlay(final_pos_x, final_pos_y, output_folder, times
             plt.title(f"Drone Positions on Gradient Map ({timestamp or 'Final'})")
             plt.xlabel("Image Pixels (PyBullet Y -> Image X)")
             plt.ylabel("Image Pixels (PyBullet X -> Image Y)")
-            plt.gca().invert_yaxis()  # Invert Y-axis to match PyBullet's view
             plt.show()
         
     except FileNotFoundError:
