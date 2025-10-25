@@ -127,6 +127,7 @@ DEFAULT_CONTROL_FREQ_HZ = 48
 DEFAULT_OUTPUT_FOLDER = '/Users/kiandrew/Desktop/Capstone/PyBullet/results_2d_1'
 # DURATION_SEC = 120
 DURATION_SEC = 240
+# DURATION_SEC = 480
 
 # Performance optimization configuration
 ENABLE_HEADLESS_MODE = True   # Set to True for maximum speed (no GUI)
@@ -192,8 +193,8 @@ FIXED_HEIGHT = 1.0  # All drones stay at this Z height
 # p.setRealTimeSumiulation(0)
 
 # Starting position for swarm
-init_center_x = 0.5
-init_center_y = 3.0
+init_center_x = 0.1
+init_center_y = 1.8
 init_center_z = FIXED_HEIGHT  # Use our fixed height
 spacing = 0.8
 
@@ -228,7 +229,9 @@ class FlockingUtils2DWithLightSensor:
         self.Dp = 2.0        # Sensing range for neighbor interaction
 
         # Drone state variables
-        self.headings = np.random.rand(n_agents) * 2 * np.pi # Initialize with random headings
+        # self.headings = np.random.rand(n_agents) * 2 * np.pi # Initialize with random headings
+        # Initialize with aligned headings
+        self.headings = np.random.uniform(-np.pi/12, np.pi/12, n_agents)
 
         print(f"💡 Created 2D FlockingUtils with Research-Aligned Gradient Following")
         print(f"   - Re-implementing logic from swarm_vu.c and dm_ds_v2.py")
