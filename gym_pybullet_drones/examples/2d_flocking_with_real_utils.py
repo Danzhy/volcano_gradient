@@ -80,12 +80,19 @@ def read_light_intensity(pybullet_x, pybullet_y, add_noise=True):
     # Invert Y-axis: PyBullet Y increases upward, but image rows increase downward
     map_x = gradient_map.shape[0] - 1 - map_x
     
-    # Convert to integers and clip to map bounds
-    map_x = np.clip(map_x.astype(int), 0, gradient_map.shape[0] - 1)
-    map_y = np.clip(map_y.astype(int), 0, gradient_map.shape[1] - 1)
+    # Check if coordinates are outside map bounds BEFORE clipping
+    out_of_bounds = ((map_x < 0) | (map_x >= gradient_map.shape[0]) | 
+                     (map_y < 0) | (map_y >= gradient_map.shape[1]))
+    
+    # Clip to map bounds for reading valid pixels
+    map_x_clipped = np.clip(map_x.astype(int), 0, gradient_map.shape[0] - 1)
+    map_y_clipped = np.clip(map_y.astype(int), 0, gradient_map.shape[1] - 1)
     
     # Read gradient values from map
-    grad_vals = gradient_map[map_x, map_y]
+    grad_vals = gradient_map[map_x_clipped, map_y_clipped]
+    
+    # Replace out-of-bounds values with maximum brightness (255 = repulsive for bright→dark swarm)
+    grad_vals = np.where(out_of_bounds, 255.0, grad_vals)
     
     # Add realistic sensor noise (inspired by dm_ds_v2.py: g_noise_mag = 0.5)
     if add_noise:
