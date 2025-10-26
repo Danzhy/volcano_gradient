@@ -309,43 +309,57 @@ class FlockingUtils2DWithLightSensor:
             # calculate adaptive spacing: lower light = larger spacing
             su = self.sb + np.power(light_normalized, 0.1) * self.sv
 
-            # --- 2. Calculate Proximal (Separation) Forces ---
-            # Loop through all other agents to calculate pair-wise forces
+            # --- 2. Calculate Proximal & Alignment Forces (Combined Loop) ---
+            # Initialize alignment force accumulators
+            sum_cosh = np.cos(self.headings[i])
+            sum_sinh = np.sin(self.headings[i])
+            
+            # Single loop through all neighbors for BOTH proximal and alignment forces
             for j in range(self.n_agents):
                 if i == j:
                     continue
 
-                # Calculate distance and angle between agent i and agent j
+                # Calculate distance and angle between agent i and agent j (ONCE!)
                 dist_x = pos_xs[j] - pos_xs[i]
                 dist_y = pos_ys[j] - pos_ys[i]
                 distance = np.sqrt(dist_x**2 + dist_y**2)
                 
                 # Consider only neighbors within the sensing range Dp
                 if distance < self.Dp:
+                    # ---- Proximal Force Calculation ----
                     ij_ang = np.arctan2(dist_y, dist_x)
                     
-                    # Equation (1) from swarm_vu.c: Proximal force calculation
-                    # This is the Lennard-Jones potential-based force
+                    # Equation (1) from swarm_vu.c: Lennard-Jones potential
                     force_magnitude = -self.epsilon * (
                         (2 * (su**4 / distance**5)) - (su**2 / distance**3)
                     )
                     
-                    # Accumulate the force components
+                    # Accumulate proximal force components
                     px += force_magnitude * np.cos(ij_ang)
                     py += force_magnitude * np.sin(ij_ang)
-
-            # --- 3. Calculate Alignment and other forces (Simplified for now) ---
-            # For this step, we are focusing on the proximal forces which are driven by 'su'.
-            # A full implementation would include alignment (beta*hx) and boundary (gama*rx) forces.
-            hx = 0.0 # Placeholder
-            hy = 0.0 # Placeholder
-            rx = 0.0 # Placeholder
-            ry = 0.0 # Placeholder
+                    
+                    # ---- Alignment Force Calculation ----
+                    # Accumulate neighbor headings for alignment
+                    sum_cosh += np.cos(self.headings[j])
+                    sum_sinh += np.sin(self.headings[j])
+            
+            # Calculate average heading direction (unit vector)
+            heading_magnitude = np.sqrt(sum_cosh**2 + sum_sinh**2)
+            if heading_magnitude > 0:
+                hx = sum_cosh / heading_magnitude
+                hy = sum_sinh / heading_magnitude
+            else:
+                hx = 0.0
+                hy = 0.0
+            
+            # Boundary repulsion not needed (using bright outside boundaries)
+            rx = 0.0
+            ry = 0.0
 
             # --- 4. Calculate Total Force ---
-            # Equation (10) from swarm_vu.c (simplified)
-            fx_raw = self.alpha * px #+ self.beta * hx + self.gama * rx
-            fy_raw = self.alpha * py #+ self.beta * hy + self.gama * ry
+            # Equation (10) from swarm_vu.c
+            fx_raw = self.alpha * px + self.beta * hx
+            fy_raw = self.alpha * py + self.beta * hy
 
             # Transform force to the agent's body frame
             fx = fx_raw * np.cos(-self.headings[i]) - fy_raw * np.sin(-self.headings[i])
