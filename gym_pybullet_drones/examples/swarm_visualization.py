@@ -206,7 +206,7 @@ def create_analysis_dashboard(
     ax3.fill_between(time_data, distance_from_start_data, alpha=0.3, color='#A23B72')
     ax3.set_xlabel('Time (s)', fontsize=10, fontweight='bold')
     ax3.set_ylabel('Distance (m)', fontsize=10, fontweight='bold')
-    ax3.set_title('Distance from Start (along x-axis)\n(Progress)', fontsize=11, fontweight='bold')
+    ax3.set_title('Distance from Start \n(along x-axis)', fontsize=11, fontweight='bold')
     ax3.grid(True, alpha=0.3)
     ax3.set_xlim(0, time_data[-1])
     
