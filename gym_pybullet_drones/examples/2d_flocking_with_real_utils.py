@@ -488,9 +488,18 @@ def run(duration_sec=DURATION_SEC):
     expected_simulation_time = duration_sec
     print(f"⏱️  Expected simulation duration: {expected_simulation_time} seconds")
     
-    # Simple data collection - just time and average light intensity
+    # Enhanced data collection for comprehensive dashboard
     time_data = []
+    centroid_x_data = []
+    centroid_y_data = []
     avg_light_intensity_data = []
+    distance_from_start_data = []
+    speed_data = []
+    swarm_radius_data = []
+    
+    # Initialize tracking variables for distance from start
+    initial_centroid_x = None
+    initial_centroid_y = None
     
     # Create subfolder for position snapshots
     snapshots_folder = os.path.join(DEFAULT_OUTPUT_FOLDER, "position_snapshots")
@@ -531,14 +540,42 @@ def run(duration_sec=DURATION_SEC):
         pos_hxs, pos_hys, pos_hzs = f_util.get_heading()
         f_util.update_heading()
         
-        # Collect light intensity data every simulation step
+        # Collect comprehensive metrics every simulation step
         current_time = i / env.CTRL_FREQ
+        
+        # 1. Light intensity
         light_readings = [read_light_intensity(pos_x[j], pos_y[j], add_noise=False) for j in range(NUM_DRONES)]
         avg_light_intensity = np.mean(light_readings)
         
-        # Store data
+        # 2. Swarm centroid position
+        centroid_x = np.mean(pos_x)
+        centroid_y = np.mean(pos_y)
+        
+        # Store initial centroid position (first iteration only)
+        if initial_centroid_x is None:
+            initial_centroid_x = centroid_x
+            initial_centroid_y = centroid_y
+        
+        # 3. Distance from starting point (X-axis displacement to track progression along gradient)
+        distance_from_start = centroid_x - initial_centroid_x
+        
+        # 4. Swarm speed (from velocities)
+        speeds = [np.sqrt(velocities_2d[j][0]**2 + velocities_2d[j][1]**2) for j in range(NUM_DRONES)]
+        avg_speed = np.mean(speeds)
+        
+        # 5. Swarm cohesion (radius from centroid)
+        distances_from_centroid = [np.sqrt((pos_x[j] - centroid_x)**2 + (pos_y[j] - centroid_y)**2) 
+                                   for j in range(NUM_DRONES)]
+        swarm_radius = np.mean(distances_from_centroid)
+        
+        # Store all metrics
         time_data.append(current_time)
+        centroid_x_data.append(centroid_x)
+        centroid_y_data.append(centroid_y)
         avg_light_intensity_data.append(avg_light_intensity)
+        distance_from_start_data.append(distance_from_start)
+        speed_data.append(avg_speed)
+        swarm_radius_data.append(swarm_radius)
         
         # Take snapshot every 10 seconds
         if current_time - last_snapshot_time >= SNAPSHOT_INTERVAL:
@@ -551,9 +588,13 @@ def run(duration_sec=DURATION_SEC):
         
         # Show progress every 3 seconds
         if i % (env.CTRL_FREQ * 3) == 0:
-# f_util.plot_swarm(pos_x, pos_y, pos_z, pos_hxs, pos_hys, pos_hzs)
-            # Print light intensity readings for debugging
-            print(f"⏱️  Time: {current_time:.1f}s | 💡 Avg light intensity: {avg_light_intensity:.1f}")
+            # Print comprehensive metrics for debugging
+            print(f"⏱️  Time: {current_time:.1f}s | "
+                  f"💡 Light: {avg_light_intensity:.1f} | "
+                  f"📍 Centroid: ({centroid_x:.2f}, {centroid_y:.2f}) | "
+                  f"📏 Distance: {distance_from_start:.2f}m | "
+                  f"🚀 Speed: {avg_speed:.3f}m/s | "
+                  f"🎯 Radius: {swarm_radius:.2f}m")
 
         # Apply control for each drone (same structure as before)
         for j in range(NUM_DRONES):
@@ -603,31 +644,32 @@ def run(duration_sec=DURATION_SEC):
         snapshots_folder, timestamp="final", show_plot=True
     )
     
-    # Plot average light intensity over time
-    print(f"\n📊 Creating light intensity plot...")
-    plt.figure(figsize=(10, 6))
-    plt.plot(time_data, avg_light_intensity_data, linewidth=2, color='blue')
-    plt.xlabel('Time (s)', fontsize=12)
-    plt.ylabel('Average Light Intensity', fontsize=12)
-    plt.title('Swarm Average Light Intensity Over Time', fontsize=14, fontweight='bold')
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
+    # Create comprehensive analysis dashboard
+    print(f"\n📊 Creating comprehensive analysis dashboard...")
+    dashboard_path = create_analysis_dashboard(
+        time_data=time_data,
+        centroid_x_data=centroid_x_data,
+        centroid_y_data=centroid_y_data,
+        light_intensity_data=avg_light_intensity_data,
+        distance_from_start_data=distance_from_start_data,
+        speed_data=speed_data,
+        swarm_radius_data=swarm_radius_data,
+        gradient_map_path=GRADIENT_MAP_PATH,
+        world_size_x=WORLD_SIZE_X,
+        world_size_y=WORLD_SIZE_Y,
+        output_folder=DEFAULT_OUTPUT_FOLDER
+    )
+    print(f"📊 Dashboard saved to: {dashboard_path}")
     
-    # Save the plot with absolute path displayed
-    os.makedirs(DEFAULT_OUTPUT_FOLDER, exist_ok=True)
-    plot_path = os.path.join(DEFAULT_OUTPUT_FOLDER, "bright_to_dark_intensity_plot.png")
-    plot_path_absolute = os.path.abspath(plot_path)  # Get absolute path
-    plt.savefig(plot_path_absolute, dpi=150)
-    print(f"📊 Plot saved to: {plot_path_absolute}")
-    
-    # Display the plot
-    plt.show()
-    
-    # Final statistics
-    final_light_readings = [read_light_intensity(pos_x[j], pos_y[j], add_noise=False) for j in range(NUM_DRONES)]
-    avg_final_light = np.mean(final_light_readings)
-    print(f"\n💡 Gradient following simulation completed!")
-    print(f"📈 Average final light intensity: {avg_final_light:.1f}")
+    # Print comprehensive simulation summary
+    print_simulation_summary(
+        simulation_time=expected_simulation_time,
+        real_time=actual_real_time,
+        final_light_intensity=avg_light_intensity_data[-1] if avg_light_intensity_data else 0,
+        final_distance=distance_from_start_data[-1] if distance_from_start_data else 0,
+        avg_speed=np.mean(speed_data) if speed_data else 0,
+        avg_radius=np.mean(swarm_radius_data) if swarm_radius_data else 0
+    )
 
 if __name__ == "__main__":
     # Simple command line argument parsing

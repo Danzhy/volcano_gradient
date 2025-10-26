@@ -141,7 +141,7 @@ def create_analysis_dashboard(
     print(f"\n📊 Creating comprehensive analysis dashboard...")
     
     fig = plt.figure(figsize=(16, 10))
-    gs = fig.add_gridspec(3, 3, hspace=0.3, wspace=0.3)
+    gs = fig.add_gridspec(3, 3, hspace=0.5, wspace=0.4)
     
     # ========================================
     # PANEL 1: Trajectory on Gradient Map (LARGE - spans 2 rows, 2 columns)
@@ -151,7 +151,7 @@ def create_analysis_dashboard(
     # Load and display gradient map as background
     try:
         img = Image.open(gradient_map_path).convert("RGB")
-        ax1.imshow(img, extent=[0, world_size_x, 0, world_size_y], origin='lower', alpha=0.6)
+        ax1.imshow(img, extent=[0, world_size_x, 0, world_size_y], origin='upper', alpha=0.6)
     except:
         print("⚠️  Could not load gradient map for trajectory plot")
     
