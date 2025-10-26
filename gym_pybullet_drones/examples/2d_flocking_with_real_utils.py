@@ -25,6 +25,9 @@ import os
 from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
 
+# Import visualization module
+from swarm_visualization import create_drone_position_overlay, create_analysis_dashboard, print_simulation_summary
+
 # Gradient map settings (matching dm_ds_v2.py approach)
 # GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/linear_gradient.png"
 # GRADIENT_MAP_PATH = "gym-pybullet-drones-3DAE/maps_gradient/parabolic_funnel.png"
@@ -319,7 +322,7 @@ class FlockingUtils2DWithLightSensor:
                 if i == j:
                     continue
 
-                # Calculate distance and angle between agent i and agent j (ONCE!)
+                # Calculate distance and angle between agent i and agent j
                 dist_x = pos_xs[j] - pos_xs[i]
                 dist_y = pos_ys[j] - pos_ys[i]
                 distance = np.sqrt(dist_x**2 + dist_y**2)
@@ -400,79 +403,6 @@ class FlockingUtils2DWithLightSensor:
         """
         # This function needs to return 3 values for compatibility, returning dummy values for hz
         return self.headings, np.zeros(self.n_agents), np.zeros(self.n_agents)
-
-def create_drone_position_overlay(final_pos_x, final_pos_y, output_folder, timestamp=None, show_plot=False):
-    """
-    Overlays drone positions on the gradient map.
-    
-    Args:
-        final_pos_x: Array of X positions of drones.
-        final_pos_y: Array of Y positions of drones.
-        output_folder: Directory to save the output image.
-        timestamp: Optional timestamp string for filename (e.g., "10s", "20s", "final")
-        show_plot: Whether to display the plot (default: False)
-    """
-    if timestamp is None:
-        print("\n📸 Creating overlay of final drone positions on gradient map...")
-        filename = "final_positions_overlay.png"
-    else:
-        print(f"📸 Snapshot at {timestamp}...")
-        filename = f"positions_at_{timestamp}.png"
-    
-    try:
-        # Load the gradient map image
-        img = Image.open(GRADIENT_MAP_PATH).convert("RGB")
-        draw = ImageDraw.Draw(img)
-        
-        # Calculate coordinate mapping constants (same as in read_light_intensity)
-        step_size = 0.04
-        grad_const_x = (len(np.arange(start=0.00, stop=WORLD_SIZE_X, step=step_size))) / WORLD_SIZE_X
-        grad_const_y = (len(np.arange(start=0.00, stop=WORLD_SIZE_Y, step=step_size))) / WORLD_SIZE_Y
-        
-        # Draw each drone's position
-        for i in range(len(final_pos_x)):
-            pybullet_x = final_pos_x[i]
-            pybullet_y = final_pos_y[i]
-            
-            # Convert PyBullet coords to image pixel coords (matching read_light_intensity)
-            # Use the same coordinate swap as the original research implementation
-            map_y = int(np.ceil(pybullet_x * grad_const_y))
-            map_x = int(np.ceil(pybullet_y * grad_const_x))
-            
-            # Invert Y-axis: PyBullet Y increases upward, but image rows increase downward
-            map_x = img.height - 1 - map_x
-            
-            # Clip to image bounds to be safe
-            map_x_clipped = np.clip(map_x, 0, img.height - 1)
-            map_y_clipped = np.clip(map_y, 0, img.width - 1)
-            
-            # Draw a circle for the drone
-            radius = 5
-            # Note the coordinate swap: Pillow uses (x,y) which is (width, height)
-            draw.ellipse(
-                (map_y_clipped - radius, map_x_clipped - radius, map_y_clipped + radius, map_x_clipped + radius),
-                fill='red',
-                outline='white'
-            )
-            
-        # Save the image
-        output_path = os.path.join(output_folder, filename)
-        img.save(output_path)
-        print(f"✅ Saved to: {output_path}")
-        
-        # Display the image only if requested
-        if show_plot:
-            plt.imshow(img)
-            plt.title(f"Drone Positions on Gradient Map ({timestamp or 'Final'})")
-            plt.xlabel("Image Pixels (PyBullet Y -> Image X)")
-            plt.ylabel("Image Pixels (PyBullet X -> Image Y)")
-            plt.show()
-        
-    except FileNotFoundError:
-        print(f"[ERROR] Could not create overlay. Gradient map not found at {GRADIENT_MAP_PATH}")
-    except Exception as e:
-        print(f"[ERROR] An error occurred while creating the overlay: {e}")
-        
 
 def run(duration_sec=DURATION_SEC):
     print("=== 2D Flocking with Gradient Following (Built on REAL FlockingUtils) ===")
@@ -613,7 +543,10 @@ def run(duration_sec=DURATION_SEC):
         # Take snapshot every 10 seconds
         if current_time - last_snapshot_time >= SNAPSHOT_INTERVAL:
             timestamp_str = f"{int(current_time)}s"
-            create_drone_position_overlay(pos_x, pos_y, snapshots_folder, timestamp=timestamp_str, show_plot=False)
+            create_drone_position_overlay(
+                pos_x, pos_y, GRADIENT_MAP_PATH, WORLD_SIZE_X, WORLD_SIZE_Y,
+                snapshots_folder, timestamp=timestamp_str, show_plot=False
+            )
             last_snapshot_time = current_time
         
         # Show progress every 3 seconds
@@ -661,8 +594,14 @@ def run(duration_sec=DURATION_SEC):
     
     # Create overlay of final positions (save to both locations)
     print("\n📸 Creating final position overlays...")
-    create_drone_position_overlay(pos_x, pos_y, DEFAULT_OUTPUT_FOLDER, timestamp="final", show_plot=False)
-    create_drone_position_overlay(pos_x, pos_y, snapshots_folder, timestamp="final", show_plot=True)
+    create_drone_position_overlay(
+        pos_x, pos_y, GRADIENT_MAP_PATH, WORLD_SIZE_X, WORLD_SIZE_Y, 
+        DEFAULT_OUTPUT_FOLDER, timestamp="final", show_plot=False
+    )
+    create_drone_position_overlay(
+        pos_x, pos_y, GRADIENT_MAP_PATH, WORLD_SIZE_X, WORLD_SIZE_Y,
+        snapshots_folder, timestamp="final", show_plot=True
+    )
     
     # Plot average light intensity over time
     print(f"\n📊 Creating light intensity plot...")
