@@ -25,8 +25,9 @@ import os
 from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
 
-# Import visualization module
+# Import visualization and experiment management modules
 from swarm_visualization import create_drone_position_overlay, create_analysis_dashboard, print_simulation_summary
+from experiment_data import ExperimentConfig, ExperimentData, check_success
 
 # Gradient map settings (matching dm_ds_v2.py approach)
 # GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/linear_gradient.png"
@@ -488,7 +489,34 @@ def run(duration_sec=DURATION_SEC):
     expected_simulation_time = duration_sec
     print(f"⏱️  Expected simulation duration: {expected_simulation_time} seconds")
     
-    # Enhanced data collection for comprehensive dashboard
+    # ============================================
+    # EXPERIMENT DATA TRACKING SETUP
+    # ============================================
+    
+    # Create experiment configuration
+    exp_config = ExperimentConfig(
+        num_drones=NUM_DRONES,
+        init_xyzs=INIT_XYZ,
+        alignment_enabled=True,  # Currently always enabled
+        desired_spacing=spacing,
+        gradient_map_path=GRADIENT_MAP_PATH,
+        world_size_x=WORLD_SIZE_X,
+        world_size_y=WORLD_SIZE_Y,
+        duration_sec=duration_sec,
+        snapshot_interval=5,
+        gui=DEFAULT_GUI and not ENABLE_HEADLESS_MODE,
+        performance_mode="headless_accurate" if ENABLE_HEADLESS_MODE else "accurate",
+        finish_line_x=5.5,  # Finish line at X=5.5m (right side)
+        finish_line_enabled=True,
+        experiment_name="",  # Will be auto-generated
+        notes=""
+    )
+    
+    # Create experiment data container
+    exp_data = ExperimentData(exp_config)
+    print(f"📋 Experiment ID: {exp_data.experiment_id}")
+    
+    # Legacy data collection (keep for backward compatibility)
     time_data = []
     centroid_x_data = []
     centroid_y_data = []
@@ -501,13 +529,17 @@ def run(duration_sec=DURATION_SEC):
     initial_centroid_x = None
     initial_centroid_y = None
     
+    # Success tracking
+    finish_line_crossed = False
+    time_to_finish = None
+    
     # Create subfolder for position snapshots
     snapshots_folder = os.path.join(DEFAULT_OUTPUT_FOLDER, "position_snapshots")
     os.makedirs(snapshots_folder, exist_ok=True)
     print(f"📁 Snapshots will be saved to: {snapshots_folder}")
     
-    # Snapshot interval (every 10 seconds)
-    SNAPSHOT_INTERVAL = 10  # seconds
+    # Snapshot interval (every 5 seconds)
+    SNAPSHOT_INTERVAL = 5  # seconds
     last_snapshot_time = -SNAPSHOT_INTERVAL  # Force first snapshot at t=0
 
     # Main simulation loop - gradient following
@@ -568,7 +600,7 @@ def run(duration_sec=DURATION_SEC):
                                    for j in range(NUM_DRONES)]
         swarm_radius = np.mean(distances_from_centroid)
         
-        # Store all metrics
+        # Store all metrics (legacy lists)
         time_data.append(current_time)
         centroid_x_data.append(centroid_x)
         centroid_y_data.append(centroid_y)
@@ -577,14 +609,34 @@ def run(duration_sec=DURATION_SEC):
         speed_data.append(avg_speed)
         swarm_radius_data.append(swarm_radius)
         
-        # Take snapshot every 10 seconds
+        # Take snapshot every 10 seconds AND store in experiment data
         if current_time - last_snapshot_time >= SNAPSHOT_INTERVAL:
             timestamp_str = f"{int(current_time)}s"
             create_drone_position_overlay(
                 pos_x, pos_y, GRADIENT_MAP_PATH, WORLD_SIZE_X, WORLD_SIZE_Y,
                 snapshots_folder, timestamp=timestamp_str, show_plot=False
             )
+            
+            # Store datapoint in experiment data (with full positions for this snapshot)
+            current_positions = np.column_stack([pos_x, pos_y, pos_z])
+            exp_data.add_datapoint(
+                time=current_time,
+                centroid_x=centroid_x,
+                centroid_y=centroid_y,
+                light_intensity=avg_light_intensity,
+                distance_from_start=distance_from_start,
+                speed=avg_speed,
+                swarm_radius=swarm_radius,
+                positions=current_positions
+            )
+            
             last_snapshot_time = current_time
+        
+        # Check if finish line crossed (for success metrics)
+        if not finish_line_crossed and check_success(centroid_x, exp_config.finish_line_x):
+            finish_line_crossed = True
+            time_to_finish = current_time
+            print(f"\n🎉 FINISH LINE CROSSED at t={time_to_finish:.1f}s! X={centroid_x:.2f}m")
         
         # Show progress every 3 seconds
         if i % (env.CTRL_FREQ * 3) == 0:
@@ -628,10 +680,36 @@ def run(duration_sec=DURATION_SEC):
     # Calculate timing statistics
     END = time.time()
     actual_real_time = END - START
+    real_time_factor = expected_simulation_time / actual_real_time if actual_real_time > 0 else 0
+    
+    # Finalize experiment data with one last snapshot at final time
+    final_positions = np.column_stack([pos_x, pos_y, [FIXED_HEIGHT] * NUM_DRONES])
+    exp_data.add_datapoint(
+        time=current_time,
+        centroid_x=centroid_x,
+        centroid_y=centroid_y,
+        light_intensity=avg_light_intensity,
+        distance_from_start=distance_from_start,
+        speed=avg_speed,
+        swarm_radius=swarm_radius,
+        positions=final_positions
+    )
+    
+    exp_data.finalize(
+        actual_duration=actual_real_time,
+        real_time_factor=real_time_factor,
+        success=finish_line_crossed,
+        time_to_finish=time_to_finish
+    )
+    
+    # Save experiment data to disk
+    print(f"\n💾 Saving experiment data...")
+    exp_data.save(output_dir=DEFAULT_OUTPUT_FOLDER)
     
     print(f"\n⏱️  TIMING ANALYSIS:")
     print(f"   Simulation time: {expected_simulation_time:.1f} seconds")
     print(f"   Real-world time: {actual_real_time:.1f} seconds")
+    print(f"   Real-time factor: {real_time_factor:.2f}x")
     
     # Create overlay of final positions (save to both locations)
     print("\n📸 Creating final position overlays...")
@@ -670,6 +748,9 @@ def run(duration_sec=DURATION_SEC):
         avg_speed=np.mean(speed_data) if speed_data else 0,
         avg_radius=np.mean(swarm_radius_data) if swarm_radius_data else 0
     )
+    
+    # Print experiment summary with success metrics
+    print(exp_data.get_summary())
 
 if __name__ == "__main__":
     # Simple command line argument parsing
