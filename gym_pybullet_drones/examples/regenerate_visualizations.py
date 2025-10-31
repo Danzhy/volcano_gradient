@@ -21,28 +21,33 @@ from experiment_data import ExperimentData
 from swarm_visualization import create_drone_position_overlay, create_analysis_dashboard
 
 
-def regenerate_all_visualizations(experiment_id: str, output_dir: str = "regeneration_files"):
+def regenerate_all_visualizations(
+    experiment_id: str, 
+    input_dir: str = "results_data_stored",
+    output_dir: str = "results_data_regenerated"
+):
     """
     Load an experiment and regenerate all visualizations.
     
     Args:
         experiment_id: The experiment ID to load (e.g., "exp_4bf7bdf6_10.31.2025_03.00.10")
-        output_dir: Directory containing the experiment data
+        input_dir: Directory containing the original experiment data (default: "results_data_stored")
+        output_dir: Directory to save regenerated visualizations (default: "results_data_regenerated")
     """
     print(f"\n{'='*60}")
     print(f"REGENERATING VISUALIZATIONS FROM SAVED DATA")
     print(f"{'='*60}\n")
     
-    # Load experiment data
-    print(f"📂 Loading experiment: {experiment_id}")
-    exp_data = ExperimentData.load(experiment_id, output_dir)
+    # Load experiment data from input directory
+    print(f"📂 Loading experiment from: {input_dir}/{experiment_id}")
+    exp_data = ExperimentData.load(experiment_id, input_dir)
     
     # Print summary
     print(exp_data.get_summary())
     
-    # Create output subfolder for regenerated files
-    regen_folder = Path(output_dir) / f"{experiment_id}_regenerated"
-    regen_folder.mkdir(exist_ok=True)
+    # Create output folder for regenerated files (experiment-specific subfolder)
+    regen_folder = Path(output_dir) / experiment_id
+    regen_folder.mkdir(parents=True, exist_ok=True)
     print(f"📁 Saving regenerated files to: {regen_folder}")
     
     # ============================================
@@ -138,13 +143,13 @@ def main():
     print("\nThis tool loads saved experiment data and recreates all")
     print("visualizations WITHOUT re-running the simulation.\n")
     
-    # List available experiments
-    output_dir = "regeneration_files"
-    experiments = ExperimentData.list_experiments(output_dir)
+    # List available experiments from results_data_stored
+    input_dir = "results_data_stored"
+    experiments = ExperimentData.list_experiments(input_dir)
     
     if not experiments:
         print("❌ No saved experiments found!")
-        print(f"   Looking in: {Path(output_dir).absolute()}")
+        print(f"   Looking in: {Path(input_dir).absolute()}")
         print("\n💡 Run a simulation first to generate data:")
         print("   python 2d_flocking_with_real_utils.py --duration 40")
         return
@@ -156,7 +161,7 @@ def main():
     for i, exp_id in enumerate(recent_experiments, 1):
         # Try to load and show basic info
         try:
-            exp_data = ExperimentData.load(exp_id, output_dir)
+            exp_data = ExperimentData.load(exp_id, input_dir)
             success_icon = "✅" if exp_data.success else "❌"
             gradient_name = Path(exp_data.config.gradient_map_path).stem[:30]
             print(f"{i:2d}. {exp_id}")
@@ -188,7 +193,7 @@ def main():
         for exp_id in recent_experiments:
             try:
                 print(f"\n{'='*60}")
-                regenerate_all_visualizations(exp_id, output_dir)
+                regenerate_all_visualizations(exp_id, input_dir, "results_data_regenerated")
             except Exception as e:
                 print(f"❌ Failed to regenerate {exp_id}: {e}")
         print("\n✅ Batch regeneration complete!")
@@ -211,7 +216,7 @@ def main():
     
     # Regenerate visualizations
     try:
-        regenerate_all_visualizations(exp_id, output_dir)
+        regenerate_all_visualizations(exp_id, input_dir, "results_data_regenerated")
     except Exception as e:
         print(f"\n❌ Error: {e}")
         import traceback
@@ -222,8 +227,9 @@ if __name__ == "__main__":
     # Check if experiment ID provided as command-line argument
     if len(sys.argv) > 1:
         exp_id = sys.argv[1]
-        output_dir = sys.argv[2] if len(sys.argv) > 2 else "regeneration_files"
-        regenerate_all_visualizations(exp_id, output_dir)
+        input_dir = sys.argv[2] if len(sys.argv) > 2 else "results_data_stored"
+        output_dir = sys.argv[3] if len(sys.argv) > 3 else "results_data_regenerated"
+        regenerate_all_visualizations(exp_id, input_dir, output_dir)
     else:
         # Interactive mode
         main()
