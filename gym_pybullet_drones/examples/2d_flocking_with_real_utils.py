@@ -135,7 +135,8 @@ DEFAULT_CONTROL_FREQ_HZ = 48
 # - Step 6-9: Apply same motor commands
 # - Step 10: NEW control decision + motor update
 
-DEFAULT_OUTPUT_FOLDER = '/Users/kiandrew/Desktop/Capstone/PyBullet/results_2d_1'
+# Check if running as part of batch experiment
+DEFAULT_OUTPUT_FOLDER = os.environ.get('BATCH_OUTPUT_FOLDER', 'results_data_stored')
 # DURATION_SEC = 120
 DURATION_SEC = 240
 # DURATION_SEC = 480
@@ -516,6 +517,11 @@ def run(duration_sec=DURATION_SEC):
     exp_data = ExperimentData(exp_config)
     print(f"📋 Experiment ID: {exp_data.experiment_id}")
     
+    # Create experiment-specific folder (all files for this run go here)
+    experiment_folder = os.path.join(DEFAULT_OUTPUT_FOLDER, exp_data.experiment_id)
+    os.makedirs(experiment_folder, exist_ok=True)
+    print(f"📁 Experiment folder: {experiment_folder}")
+    
     # Legacy data collection (keep for backward compatibility)
     time_data = []
     centroid_x_data = []
@@ -533,8 +539,8 @@ def run(duration_sec=DURATION_SEC):
     finish_line_crossed = False
     time_to_finish = None
     
-    # Create subfolder for position snapshots
-    snapshots_folder = os.path.join(DEFAULT_OUTPUT_FOLDER, "position_snapshots")
+    # Create subfolder for position snapshots inside experiment folder
+    snapshots_folder = os.path.join(experiment_folder, "position_snapshots")
     os.makedirs(snapshots_folder, exist_ok=True)
     print(f"📁 Snapshots will be saved to: {snapshots_folder}")
     
@@ -637,6 +643,8 @@ def run(duration_sec=DURATION_SEC):
             finish_line_crossed = True
             time_to_finish = current_time
             print(f"\n🎉 FINISH LINE CROSSED at t={time_to_finish:.1f}s! X={centroid_x:.2f}m")
+            print(f"🏁 Terminating simulation early (success!)")
+            break  # Exit simulation loop immediately
         
         # Show progress every 3 seconds
         if i % (env.CTRL_FREQ * 3) == 0:
@@ -702,28 +710,33 @@ def run(duration_sec=DURATION_SEC):
         time_to_finish=time_to_finish
     )
     
-    # Save experiment data to disk
+    # Save experiment data to disk (in experiment folder)
     print(f"\n💾 Saving experiment data...")
-    exp_data.save(output_dir=DEFAULT_OUTPUT_FOLDER)
+    exp_data.save(output_dir=experiment_folder)
     
     print(f"\n⏱️  TIMING ANALYSIS:")
     print(f"   Simulation time: {expected_simulation_time:.1f} seconds")
     print(f"   Real-world time: {actual_real_time:.1f} seconds")
     print(f"   Real-time factor: {real_time_factor:.2f}x")
     
-    # Create overlay of final positions (save to both locations)
-    print("\n📸 Creating final position overlays...")
+    # Check if running in batch mode (don't show plots if so)
+    is_batch_mode = os.environ.get('BATCH_OUTPUT_FOLDER') is not None
+    
+    # Create overlay of final positions (save to experiment folder)
+    if not is_batch_mode:
+        print("\n📸 Creating final position overlays...")
     create_drone_position_overlay(
         pos_x, pos_y, GRADIENT_MAP_PATH, WORLD_SIZE_X, WORLD_SIZE_Y, 
-        DEFAULT_OUTPUT_FOLDER, timestamp="final", show_plot=False
+        experiment_folder, timestamp="final", show_plot=False
     )
     create_drone_position_overlay(
         pos_x, pos_y, GRADIENT_MAP_PATH, WORLD_SIZE_X, WORLD_SIZE_Y,
-        snapshots_folder, timestamp="final", show_plot=True
+        snapshots_folder, timestamp="final", show_plot=(not is_batch_mode)
     )
     
-    # Create comprehensive analysis dashboard
-    print(f"\n📊 Creating comprehensive analysis dashboard...")
+    # Create comprehensive analysis dashboard (save to experiment folder)
+    if not is_batch_mode:
+        print(f"\n📊 Creating comprehensive analysis dashboard...")
     dashboard_path = create_analysis_dashboard(
         time_data=time_data,
         centroid_x_data=centroid_x_data,
@@ -735,9 +748,10 @@ def run(duration_sec=DURATION_SEC):
         gradient_map_path=GRADIENT_MAP_PATH,
         world_size_x=WORLD_SIZE_X,
         world_size_y=WORLD_SIZE_Y,
-        output_folder=DEFAULT_OUTPUT_FOLDER
+        output_folder=experiment_folder
     )
-    print(f"📊 Dashboard saved to: {dashboard_path}")
+    if not is_batch_mode:
+        print(f"📊 Dashboard saved to: {dashboard_path}")
     
     # Print comprehensive simulation summary
     print_simulation_summary(

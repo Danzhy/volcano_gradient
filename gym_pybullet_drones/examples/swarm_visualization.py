@@ -244,10 +244,13 @@ def create_analysis_dashboard(
     dashboard_path = os.path.join(output_folder, "swarm_analysis_dashboard.png")
     dashboard_path_absolute = os.path.abspath(dashboard_path)
     plt.savefig(dashboard_path_absolute, dpi=150, bbox_inches='tight')
-    print(f"📊 Dashboard saved to: {dashboard_path_absolute}")
     
-    # Display the dashboard
-    plt.show()
+    # Only display if not in batch mode
+    if not os.environ.get('BATCH_OUTPUT_FOLDER'):
+        print(f"📊 Dashboard saved to: {dashboard_path_absolute}")
+        plt.show()
+    else:
+        plt.close()  # Close without showing in batch mode
     
     return dashboard_path_absolute
 

@@ -1,0 +1,52 @@
+{
+  "batch_id": "batch_10.31.2025_12.01.00",
+  "timestamp": "10.31.2025_12.01.00",
+  "num_runs": 3,
+  "success_count": 3,
+  "failure_count": 0,
+  "success_rate_percent": 100.0,
+  "total_wall_clock_time": 38.79838490486145,
+  "avg_time_per_run": 12.93279496828715,
+  "completion_time_mean": 101.28472222222223,
+  "completion_time_std": 53.147507033331536,
+  "completion_time_min": 60.1875,
+  "completion_time_max": 176.33333333333334,
+  "completion_time_median": 67.33333333333333,
+  "completion_time_q1": 63.760416666666664,
+  "completion_time_q3": 121.83333333333334,
+  "results": [
+    {
+      "run_number": 1,
+      "experiment_id": "exp_4bf7bdf6_10.31.2025_12.01.01",
+      "success": true,
+      "time_to_finish": 176.33333333333334,
+      "actual_duration": 15.927398920059204,
+      "real_time_factor": 15.068373763009125,
+      "final_centroid_x": 5.400002976998806,
+      "final_light_intensity": 90.8,
+      "wall_clock_time": 21.269362926483154
+    },
+    {
+      "run_number": 2,
+      "experiment_id": "exp_4bf7bdf6_10.31.2025_12.01.22",
+      "success": true,
+      "time_to_finish": 60.1875,
+      "actual_duration": 5.423869371414185,
+      "real_time_factor": 44.24885327528158,
+      "final_centroid_x": 5.4016503207154045,
+      "final_light_intensity": 68.4,
+      "wall_clock_time": 8.372974872589111
+    },
+    {
+      "run_number": 3,
+      "experiment_id": "exp_4bf7bdf6_10.31.2025_12.01.31",
+      "success": true,
+      "time_to_finish": 67.33333333333333,
+      "actual_duration": 6.0378570556640625,
+      "real_time_factor": 39.74920204095558,
+      "final_centroid_x": 5.400086768935501,
+      "final_light_intensity": 72.6,
+      "wall_clock_time": 9.118716955184937
+    }
+  ]
+}
