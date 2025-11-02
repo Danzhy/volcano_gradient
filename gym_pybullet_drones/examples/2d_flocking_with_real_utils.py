@@ -539,10 +539,18 @@ def run(duration_sec=DURATION_SEC):
     finish_line_crossed = False
     time_to_finish = None
     
-    # Create subfolder for position snapshots inside experiment folder
-    snapshots_folder = os.path.join(experiment_folder, "position_snapshots")
-    os.makedirs(snapshots_folder, exist_ok=True)
-    print(f"📁 Snapshots will be saved to: {snapshots_folder}")
+    # Check if running in batch mode (skip visualizations for speed)
+    BATCH_MODE = os.environ.get('BATCH_MODE', '0') == '1'
+    if BATCH_MODE:
+        print("🚀 BATCH MODE: Skipping visualization generation for speed")
+        print("   (Use regenerate_visualizations.py later to create plots)")
+    
+    # Create subfolder for position snapshots inside experiment folder (only if not batch mode)
+    snapshots_folder = None
+    if not BATCH_MODE:
+        snapshots_folder = os.path.join(experiment_folder, "position_snapshots")
+        os.makedirs(snapshots_folder, exist_ok=True)
+        print(f"📁 Snapshots will be saved to: {snapshots_folder}")
     
     # Snapshot interval (every 5 seconds)
     SNAPSHOT_INTERVAL = 5  # seconds
@@ -615,13 +623,16 @@ def run(duration_sec=DURATION_SEC):
         speed_data.append(avg_speed)
         swarm_radius_data.append(swarm_radius)
         
-        # Take snapshot every 10 seconds AND store in experiment data
+        # Take snapshot every 5 seconds AND store in experiment data
         if current_time - last_snapshot_time >= SNAPSHOT_INTERVAL:
             timestamp_str = f"{int(current_time)}s"
-            create_drone_position_overlay(
-                pos_x, pos_y, GRADIENT_MAP_PATH, WORLD_SIZE_X, WORLD_SIZE_Y,
-                snapshots_folder, timestamp=timestamp_str, show_plot=False
-            )
+            
+            # Only create visualization if not in batch mode
+            if not BATCH_MODE:
+                create_drone_position_overlay(
+                    pos_x, pos_y, GRADIENT_MAP_PATH, WORLD_SIZE_X, WORLD_SIZE_Y,
+                    snapshots_folder, timestamp=timestamp_str, show_plot=False
+                )
             
             # Store datapoint in experiment data (with full positions for this snapshot)
             current_positions = np.column_stack([pos_x, pos_y, pos_z])
@@ -719,39 +730,38 @@ def run(duration_sec=DURATION_SEC):
     print(f"   Real-world time: {actual_real_time:.1f} seconds")
     print(f"   Real-time factor: {real_time_factor:.2f}x")
     
-    # Check if running in batch mode (don't show plots if so)
-    is_batch_mode = os.environ.get('BATCH_OUTPUT_FOLDER') is not None
-    
-    # Create overlay of final positions (save to experiment folder)
-    if not is_batch_mode:
+    # Skip all visualization creation in batch mode (can regenerate later)
+    if not BATCH_MODE:
+        # Create overlay of final positions (save to experiment folder)
         print("\n📸 Creating final position overlays...")
-    create_drone_position_overlay(
-        pos_x, pos_y, GRADIENT_MAP_PATH, WORLD_SIZE_X, WORLD_SIZE_Y, 
-        experiment_folder, timestamp="final", show_plot=False
-    )
-    create_drone_position_overlay(
-        pos_x, pos_y, GRADIENT_MAP_PATH, WORLD_SIZE_X, WORLD_SIZE_Y,
-        snapshots_folder, timestamp="final", show_plot=(not is_batch_mode)
-    )
-    
-    # Create comprehensive analysis dashboard (save to experiment folder)
-    if not is_batch_mode:
+        create_drone_position_overlay(
+            pos_x, pos_y, GRADIENT_MAP_PATH, WORLD_SIZE_X, WORLD_SIZE_Y, 
+            experiment_folder, timestamp="final", show_plot=False
+        )
+        create_drone_position_overlay(
+            pos_x, pos_y, GRADIENT_MAP_PATH, WORLD_SIZE_X, WORLD_SIZE_Y,
+            snapshots_folder, timestamp="final", show_plot=True
+        )
+        
+        # Create comprehensive analysis dashboard (save to experiment folder)
         print(f"\n📊 Creating comprehensive analysis dashboard...")
-    dashboard_path = create_analysis_dashboard(
-        time_data=time_data,
-        centroid_x_data=centroid_x_data,
-        centroid_y_data=centroid_y_data,
-        light_intensity_data=avg_light_intensity_data,
-        distance_from_start_data=distance_from_start_data,
-        speed_data=speed_data,
-        swarm_radius_data=swarm_radius_data,
-        gradient_map_path=GRADIENT_MAP_PATH,
-        world_size_x=WORLD_SIZE_X,
-        world_size_y=WORLD_SIZE_Y,
-        output_folder=experiment_folder
-    )
-    if not is_batch_mode:
+        dashboard_path = create_analysis_dashboard(
+            time_data=time_data,
+            centroid_x_data=centroid_x_data,
+            centroid_y_data=centroid_y_data,
+            light_intensity_data=avg_light_intensity_data,
+            distance_from_start_data=distance_from_start_data,
+            speed_data=speed_data,
+            swarm_radius_data=swarm_radius_data,
+            gradient_map_path=GRADIENT_MAP_PATH,
+            world_size_x=WORLD_SIZE_X,
+            world_size_y=WORLD_SIZE_Y,
+            output_folder=experiment_folder
+        )
         print(f"📊 Dashboard saved to: {dashboard_path}")
+    else:
+        print("\n⚡ Skipped visualization generation (batch mode)")
+        print("   Use regenerate_visualizations.py to create plots later")
     
     # Print comprehensive simulation summary
     print_simulation_summary(

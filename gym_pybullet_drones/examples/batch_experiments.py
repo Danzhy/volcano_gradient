@@ -55,9 +55,10 @@ def run_single_experiment(run_number: int, batch_folder: str, duration_sec: int 
     # Run as subprocess (cleaner than importlib for module with numbers in name)
     start_time = time.time()
     try:
-        # Set environment variable to override output folder
+        # Set environment variables to override output folder and skip visualizations
         env = os.environ.copy()
         env['BATCH_OUTPUT_FOLDER'] = batch_folder
+        env['BATCH_MODE'] = '1'  # Signal to skip visualization generation
         
         result = subprocess.run(
             [sys.executable, str(sim_script), '--duration', str(duration_sec)],
