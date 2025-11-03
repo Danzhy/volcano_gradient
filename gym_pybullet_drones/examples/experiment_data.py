@@ -48,7 +48,12 @@ class ExperimentConfig:
         
         # Metadata
         experiment_name: str = "",
-        notes: str = ""
+        notes: str = "",
+        
+        # Random seed management (for reproducibility)
+        random_seed: Optional[int] = None,
+        base_seed: int = 42,
+        run_number: Optional[int] = None
     ):
         self.num_drones = num_drones
         self.init_xyzs = init_xyzs
@@ -69,6 +74,9 @@ class ExperimentConfig:
         self.finish_line_enabled = finish_line_enabled
         self.experiment_name = experiment_name
         self.notes = notes
+        self.random_seed = random_seed
+        self.base_seed = base_seed
+        self.run_number = run_number
         self.timestamp = datetime.now().isoformat()
         
     def to_dict(self) -> Dict[str, Any]:

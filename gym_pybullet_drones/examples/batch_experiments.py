@@ -61,7 +61,9 @@ def run_single_experiment(run_number: int, batch_folder: str, duration_sec: int 
         env['BATCH_MODE'] = '1'  # Signal to skip visualization generation
         
         result = subprocess.run(
-            [sys.executable, str(sim_script), '--duration', str(duration_sec)],
+            [sys.executable, str(sim_script), 
+             '--duration', str(duration_sec),
+             '--run-number', str(run_number)],  # Pass run number for seed generation
             cwd=str(script_dir.parent.parent),  # Run from project root
             capture_output=True,
             text=True,
@@ -342,15 +344,26 @@ def run_batch_experiments(
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(description='Run batch experiments')
+    parser = argparse.ArgumentParser(
+        description='Run batch experiments with reproducible random seeds',
+        epilog='Each run will use seed = base_seed + run_number for reproducibility.\n'
+               'Example: --runs 5 --base-seed 42 will use seeds 43, 44, 45, 46, 47'
+    )
     parser.add_argument('--runs', type=int, default=50,
                        help='Number of experiments to run (default: 50)')
     parser.add_argument('--duration', type=int, default=240,
                        help='Maximum duration per experiment in seconds (default: 240)')
     parser.add_argument('--output', type=str, default='results_batch',
                        help='Base output folder (default: results_batch)')
+    parser.add_argument('--base-seed', type=int, default=42,
+                       help='Base random seed for batch (default: 42). Run N uses seed base_seed+N')
     
     args = parser.parse_args()
+    
+    print(f"🎲 Random Seed Configuration:")
+    print(f"   Base seed: {args.base_seed}")
+    print(f"   Run seeds: {args.base_seed + 1} to {args.base_seed + args.runs}")
+    print(f"   All experiments are reproducible!\n")
     
     run_batch_experiments(
         num_runs=args.runs,

@@ -199,7 +199,8 @@ def set_performance_mode(mode="accurate"):
     print(f"   - Simulation freq: {OPTIMIZED_SIMULATION_FREQ_HZ} Hz")
     print(f"   - Control freq: {OPTIMIZED_CONTROL_FREQ_HZ} Hz")
 
-NUM_DRONES = 5
+# NUM_DRONES = 5
+NUM_DRONES = 10
 FIXED_HEIGHT = 1.0  # All drones stay at this Z height
 
 # p.setRealTimeSumiulation(0)
@@ -406,11 +407,42 @@ class FlockingUtils2DWithLightSensor:
         # This function needs to return 3 values for compatibility, returning dummy values for hz
         return self.headings, np.zeros(self.n_agents), np.zeros(self.n_agents)
 
-def run(duration_sec=DURATION_SEC):
+def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42):
+    """
+    Run 2D flocking simulation with gradient following.
+    
+    Args:
+        duration_sec: Simulation duration in seconds
+        seed: Explicit random seed (overrides base_seed + run_number)
+        run_number: Run number for batch experiments (combined with base_seed)
+        base_seed: Base seed for all experiments (default: 42)
+    """
     print("=== 2D Flocking with Gradient Following (Built on REAL FlockingUtils) ===")
     print("This extends the proven FlockingUtils foundation")
     print("by adding light sensor simulation and gradient following behavior!")
 
+    # ============================================
+    # SEED MANAGEMENT FOR REPRODUCIBILITY
+    # ============================================
+    
+    # Determine actual seed (Option 3: explicit > run_number > base_seed)
+    if seed is not None:
+        # Explicit seed provided (for reproducing specific run)
+        actual_seed = seed
+        print(f"🎲 Using explicit seed: {actual_seed}")
+    elif run_number is not None:
+        # Batch experiment: derive from base_seed + run_number
+        # This gives each run a different (but reproducible) seed for natural variability
+        actual_seed = base_seed + run_number
+        print(f"🎲 Batch run {run_number}: seed = {actual_seed} (base={base_seed})")
+    else:
+        # Single run: use base_seed
+        actual_seed = base_seed
+        print(f"🎲 Using base seed: {actual_seed}")
+    
+    # Set numpy random seed for reproducibility
+    np.random.seed(actual_seed)
+    print(f"   → All random operations (initial headings, sensor noise) will be reproducible")
     
     # Set performance mode (change this to "fast" for maximum speed!)
     # set_performance_mode("fast")  # Options: "fast", "balanced", "accurate"
@@ -510,7 +542,11 @@ def run(duration_sec=DURATION_SEC):
         finish_line_x=5.5,  # Finish line at X=5.5m (right side)
         finish_line_enabled=True,
         experiment_name="",  # Will be auto-generated
-        notes=""
+        notes="",
+        # Random seed management (for reproducibility)
+        random_seed=actual_seed,
+        base_seed=base_seed,
+        run_number=run_number
     )
     
     # Create experiment data container
@@ -777,11 +813,28 @@ def run(duration_sec=DURATION_SEC):
     print(exp_data.get_summary())
 
 if __name__ == "__main__":
-    # Simple command line argument parsing
-    parser = argparse.ArgumentParser(description='2D Flocking with Gradient Following')
+    # Command line argument parsing
+    parser = argparse.ArgumentParser(
+        description='2D Flocking with Gradient Following',
+        epilog='Examples:\n'
+               '  Single run (default seed):     python %(prog)s --duration 240\n'
+               '  Specific seed:                 python %(prog)s --duration 240 --seed 123\n'
+               '  Batch run (from batch_experiments): python %(prog)s --duration 240 --run-number 5\n'
+               '  Reproduce specific run:        python %(prog)s --duration 240 --seed 47',
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument('--duration', type=int, default=DURATION_SEC,
                        help=f'Simulation duration in seconds (default: {DURATION_SEC})')
+    parser.add_argument('--seed', type=int, default=None,
+                       help='Explicit random seed for reproducibility (overrides --run-number and base seed)')
+    parser.add_argument('--run-number', type=int, default=None,
+                       help='Run number for batch experiments (seed = base_seed + run_number)')
+    parser.add_argument('--base-seed', type=int, default=42,
+                       help='Base seed for batch experiments (default: 42)')
     
     args = parser.parse_args()
     
-    run(duration_sec=args.duration)
+    run(duration_sec=args.duration, 
+        seed=args.seed,
+        run_number=args.run_number,
+        base_seed=args.base_seed)
