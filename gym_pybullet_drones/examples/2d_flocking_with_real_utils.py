@@ -268,7 +268,7 @@ def set_performance_mode(mode="accurate"):
     print(f"   - Control freq: {OPTIMIZED_CONTROL_FREQ_HZ} Hz")
 
 # NUM_DRONES = 5
-NUM_DRONES = 19
+NUM_DRONES = 7
 FIXED_HEIGHT = 1.0  # All drones stay at this Z height
 
 # p.setRealTimeSumiulation(0)

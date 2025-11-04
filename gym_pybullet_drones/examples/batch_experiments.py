@@ -280,9 +280,42 @@ def run_batch_experiments(
     
     completion_times = [r['time_to_finish'] for r in successful_runs]
     
+    # Extract configuration from first experiment's metadata
+    configuration = {}
+    if results:
+        first_exp_id = results[0].get('experiment_id', '')
+        if first_exp_id:
+            metadata_path = os.path.join(batch_folder, first_exp_id, 'metadata.json')
+            try:
+                with open(metadata_path, 'r') as f:
+                    metadata = json.load(f)
+                    config = metadata.get('config', {})
+                    
+                    # Extract key configuration parameters
+                    configuration = {
+                        "num_drones": config.get('num_drones'),
+                        "alignment_enabled": config.get('alignment_enabled'),
+                        "desired_spacing": config.get('desired_spacing'),
+                        "attraction_strength": config.get('attraction_strength'),
+                        "repulsion_strength": config.get('repulsion_strength'),
+                        "alignment_strength": config.get('alignment_strength'),
+                        "light_influence": config.get('light_influence'),
+                        "gradient_map": os.path.basename(config.get('gradient_map_path', '')),
+                        "world_size_x": config.get('world_size_x'),
+                        "world_size_y": config.get('world_size_y'),
+                        "finish_line_x": config.get('finish_line_x'),
+                        "finish_line_enabled": config.get('finish_line_enabled'),
+                        "max_duration": config.get('duration_sec'),
+                        "performance_mode": config.get('performance_mode'),
+                        "base_seed": config.get('base_seed'),
+                    }
+            except (FileNotFoundError, json.JSONDecodeError) as e:
+                print(f"⚠️  Warning: Could not extract configuration from metadata: {e}")
+    
     summary = {
         "batch_id": batch_id,
         "timestamp": timestamp,
+        "configuration": configuration,
         "num_runs": num_runs,
         "success_count": success_count,
         "failure_count": num_runs - success_count,
@@ -312,6 +345,18 @@ def run_batch_experiments(
     print(f"\n{'='*70}")
     print("✅ BATCH COMPLETE!")
     print(f"{'='*70}")
+    
+    # Print configuration if available
+    if configuration:
+        print(f"\n⚙️  CONFIGURATION:")
+        print(f"   Swarm size: {configuration.get('num_drones', 'N/A')} drones")
+        print(f"   World size: {configuration.get('world_size_x', 'N/A')}m × {configuration.get('world_size_y', 'N/A')}m")
+        print(f"   Finish line: {configuration.get('finish_line_x', 'N/A'):.2f}m")
+        print(f"   Alignment: {'Enabled' if configuration.get('alignment_enabled') else 'Disabled'}")
+        print(f"   Spacing: {configuration.get('desired_spacing', 'N/A')}m")
+        print(f"   Gradient map: {configuration.get('gradient_map', 'N/A')}")
+        print(f"   Base seed: {configuration.get('base_seed', 'N/A')}")
+    
     print(f"\n📊 SUMMARY STATISTICS:")
     print(f"   Total runs: {num_runs}")
     print(f"   Successful: {success_count} ({success_rate:.1f}%)")

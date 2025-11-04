@@ -26,14 +26,14 @@ class ExperimentConfig:
         # Flocking parameters
         alignment_enabled: bool = True,
         desired_spacing: float = 0.8,
-        attraction_strength: float = 0.5,
-        repulsion_strength: float = 1.0,
-        alignment_strength: float = 0.3,
-        light_influence: float = 0.2,
+        # attraction_strength: float = 0.5,
+        # repulsion_strength: float = 1.0,
+        # alignment_strength: float = 0.3,
+        # light_influence: float = 0.2,
         
         # Environment parameters
         gradient_map_path: str = "",
-        world_size_x: float = 6.5,
+        world_size_x: float = 2.0,
         world_size_y: float = 4.0,
         
         # Simulation parameters
@@ -43,7 +43,7 @@ class ExperimentConfig:
         performance_mode: str = "headless_accurate",
         
         # Success criteria
-        finish_line_x: float = 5.5,
+        finish_line_x: float = 17.54,
         finish_line_enabled: bool = True,
         
         # Metadata
@@ -59,10 +59,10 @@ class ExperimentConfig:
         self.init_xyzs = init_xyzs
         self.alignment_enabled = alignment_enabled
         self.desired_spacing = desired_spacing
-        self.attraction_strength = attraction_strength
-        self.repulsion_strength = repulsion_strength
-        self.alignment_strength = alignment_strength
-        self.light_influence = light_influence
+        # self.attraction_strength = attraction_strength
+        # self.repulsion_strength = repulsion_strength
+        # self.alignment_strength = alignment_strength
+        # self.light_influence = light_influence
         self.gradient_map_path = gradient_map_path
         self.world_size_x = world_size_x
         self.world_size_y = world_size_y
@@ -104,7 +104,7 @@ class ExperimentConfig:
         """Generate unique hash for this configuration."""
         # Create string representation of key parameters
         key_params = f"{self.num_drones}_{self.alignment_enabled}_{self.desired_spacing}_" \
-                    f"{self.gradient_map_path}_{self.alignment_strength}_{self.light_influence}"
+                    f"{self.gradient_map_path}"
         return hashlib.md5(key_params.encode()).hexdigest()[:8]
     
     def get_experiment_id(self) -> str:
