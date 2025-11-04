@@ -13,6 +13,7 @@ import os
 import sys
 import json
 import time
+from typing import Optional
 import numpy as np
 from pathlib import Path
 from datetime import datetime
@@ -28,7 +29,8 @@ sys.path.insert(0, str(script_dir))
 from experiment_data import ExperimentData
 
 
-def run_single_experiment(run_number: int, batch_folder: str, duration_sec: int = 240) -> Dict[str, Any]:
+def run_single_experiment(run_number: int, batch_folder: str, duration_sec: int, 
+                         num_drones: Optional[int] = None, alignment: Optional[bool] = None) -> Dict[str, Any]:
     """
     Run a single experiment and return results.
     
@@ -60,10 +62,21 @@ def run_single_experiment(run_number: int, batch_folder: str, duration_sec: int 
         env['BATCH_OUTPUT_FOLDER'] = batch_folder
         env['BATCH_MODE'] = '1'  # Signal to skip visualization generation
         
+        # Build command with optional parameters
+        cmd = [sys.executable, str(sim_script), 
+               '--duration', str(duration_sec),
+               '--run-number', str(run_number)]  # Pass run number for seed generation
+        
+        # Add optional num_drones parameter
+        if num_drones is not None:
+            cmd.extend(['--num-drones', str(num_drones)])
+        
+        # Add optional alignment parameter
+        if alignment is not None:
+            cmd.extend(['--alignment', 'true' if alignment else 'false'])
+        
         result = subprocess.run(
-            [sys.executable, str(sim_script), 
-             '--duration', str(duration_sec),
-             '--run-number', str(run_number)],  # Pass run number for seed generation
+            cmd,
             cwd=str(script_dir.parent.parent),  # Run from project root
             capture_output=True,
             text=True,
@@ -224,7 +237,9 @@ def create_batch_summary_visualization(results: List[Dict[str, Any]], output_pat
 def run_batch_experiments(
     num_runs: int = 50,
     duration_sec: int = 240,
-    base_output_folder: str = "results_batch"
+    base_output_folder: str = "results_batch",
+    num_drones: Optional[int] = None,
+    alignment: Optional[bool] = None
 ):
     """
     Run multiple experiments sequentially and gather statistics.
@@ -233,6 +248,8 @@ def run_batch_experiments(
         num_runs: Number of experiments to run
         duration_sec: Maximum duration for each experiment
         base_output_folder: Base folder for batch results
+        num_drones: Number of drones (None = use default)
+        alignment: Enable/disable alignment (None = use default)
     """
     print("="*70)
     print("🚀 BATCH EXPERIMENT RUNNER")
@@ -258,7 +275,7 @@ def run_batch_experiments(
     results = []
     
     for run_num in range(1, num_runs + 1):
-        result = run_single_experiment(run_num, batch_folder, duration_sec)
+        result = run_single_experiment(run_num, batch_folder, duration_sec, num_drones, alignment)
         results.append(result)
         
         # Print progress
@@ -402,8 +419,17 @@ if __name__ == "__main__":
                        help='Base output folder (default: results_batch)')
     parser.add_argument('--base-seed', type=int, default=42,
                        help='Base random seed for batch (default: 42). Run N uses seed base_seed+N')
+    parser.add_argument('--num-drones', type=int, default=None,
+                       help='Number of drones (default: use simulation default)')
+    parser.add_argument('--alignment', type=str, choices=['true', 'false'], default=None,
+                       help='Enable/disable alignment (default: use simulation default)')
     
     args = parser.parse_args()
+    
+    # Parse alignment argument
+    alignment = None
+    if args.alignment:
+        alignment = (args.alignment.lower() == 'true')
     
     print(f"🎲 Random Seed Configuration:")
     print(f"   Base seed: {args.base_seed}")
@@ -413,5 +439,7 @@ if __name__ == "__main__":
     run_batch_experiments(
         num_runs=args.runs,
         duration_sec=args.duration,
-        base_output_folder=args.output
+        base_output_folder=args.output,
+        num_drones=args.num_drones,
+        alignment=alignment
     )

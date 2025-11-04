@@ -288,16 +288,17 @@ class FlockingUtils2DWithLightSensor:
     removing the dependency on the incorrect ants_2024.flocking_utils.
     """
     
-    def __init__(self, n_agents, center_x, center_y, center_z, spacing):
+    def __init__(self, n_agents, center_x, center_y, center_z, spacing, alignment_enabled=True):
         self.n_agents = n_agents
         self.center_x = center_x
         self.center_y = center_y
         self.fixed_z = center_z
         self.spacing = spacing
+        self.alignment_enabled = alignment_enabled
 
         # --- Parameters from swarm_vu.c and dm_ds_v2.py ---
         self.alpha = 2.0     # Weight for proximal force
-        self.beta = 1.0      # Weight for alignment force
+        self.beta = 1.0 if alignment_enabled else 0.0  # Weight for alignment force (0 = disabled)
         self.gama = 1.0      # Weight for boundary repulsion
         self.epsilon = 12.0  # Lennard-Jones potential parameter
         self.sb = 0.3        # Base spacing for su
@@ -317,6 +318,7 @@ class FlockingUtils2DWithLightSensor:
         print(f"💡 Created 2D FlockingUtils with Research-Aligned Gradient Following")
         print(f"   - Re-implementing logic from swarm_vu.c and dm_ds_v2.py")
         print(f"   - Constraining all drones to Z = {self.fixed_z}")
+        print(f"   - Alignment: {'ENABLED (β=1.0)' if alignment_enabled else 'DISABLED (β=0.0)'}")
 
     def initialize_positions(self):
         """Initialize positions but ensure Z is fixed"""
@@ -476,7 +478,7 @@ class FlockingUtils2DWithLightSensor:
         return self.headings, np.zeros(self.n_agents), np.zeros(self.n_agents)
 
 def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42, 
-        num_drones=NUM_DRONES, map_length=WORLD_SIZE_X):
+        num_drones=NUM_DRONES, map_length=WORLD_SIZE_X, alignment_enabled=True):
     """
     Run 2D flocking simulation with gradient following.
     
@@ -540,7 +542,8 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
     f_util = FlockingUtils2DWithLightSensor(
         n_agents=num_drones,
         center_x=init_center_x, center_y=init_center_y, center_z=init_center_z, 
-        spacing=spacing
+        spacing=spacing,
+        alignment_enabled=alignment_enabled
     )
     pos_xs, pos_ys, pos_zs, pos_h_xc, pos_h_yc, pos_h_zc = f_util.initialize_positions()
 
@@ -617,7 +620,7 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
     exp_config = ExperimentConfig(
         num_drones=NUM_DRONES,
         init_xyzs=INIT_XYZ,
-        alignment_enabled=True,  # Currently always enabled
+        alignment_enabled=alignment_enabled,  # Can be controlled via command line
         desired_spacing=spacing,
         gradient_map_path=GRADIENT_MAP_PATH,
         world_size_x=WORLD_SIZE_X,
@@ -922,12 +925,20 @@ if __name__ == "__main__":
                        help=f'Number of drones in swarm (default: {NUM_DRONES})')
     parser.add_argument('--map-length', type=float, default=WORLD_SIZE_X,
                        help=f'Map length in X direction for finish line calculation (default: {WORLD_SIZE_X}m)')
+    parser.add_argument('--alignment', type=str, choices=['true', 'false'], default=None,
+                       help='Enable/disable alignment (default: enabled)')
     
     args = parser.parse_args()
+    
+    # Parse alignment argument
+    alignment_enabled = True  # Default
+    if args.alignment:
+        alignment_enabled = (args.alignment.lower() == 'true')
     
     run(duration_sec=args.duration, 
         seed=args.seed,
         run_number=args.run_number,
         base_seed=args.base_seed,
         num_drones=args.num_drones,
-        map_length=args.map_length)
+        map_length=args.map_length,
+        alignment_enabled=alignment_enabled)
