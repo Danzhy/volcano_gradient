@@ -320,6 +320,7 @@ class ExperimentData:
         summary += f"  Drones: {self.config.num_drones}\n"
         summary += f"  Alignment: {'Enabled' if self.config.alignment_enabled else 'Disabled'}\n"
         summary += f"  Desired Spacing: {self.config.desired_spacing}m\n"
+        summary += f"  Finish Line: {self.config.finish_line_x:.2f}m\n"
         summary += f"  Gradient Map: {Path(self.config.gradient_map_path).name}\n"
         summary += f"  Duration: {self.config.duration_sec}s\n\n"
         

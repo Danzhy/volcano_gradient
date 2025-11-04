@@ -5,6 +5,7 @@ Extended to add goal-seeking behavior while keeping all the proven research algo
 import time
 import argparse
 import numpy as np
+import math
 import sys
 import pybullet as p
 
@@ -110,6 +111,72 @@ def read_light_intensity(pybullet_x, pybullet_y, add_noise=True):
 print(f"[INFO] Coordinate mapping functions ready")
 print(f"[INFO] World bounds: (0,0) to ({WORLD_SIZE_X},{WORLD_SIZE_Y}) meters")
 print(f"[INFO] Gradient map bounds: (0,0) to {gradient_map.shape} pixels")
+
+
+# Finish Line Calculation - Dynamic based on swarm size
+def calculate_finish_line(num_drones, sb=0.3, sv=0.5, map_length=6.5, 
+                         tolerance=0.20, packing_efficiency=0.85):
+    """
+    Calculate finish line position based on swarm size and spacing parameters.
+    
+    Uses hexagonal packing geometry to estimate maximum swarm radius,
+    then adds safety margin (tolerance) to ensure swarm doesn't hit walls.
+    
+    Args:
+        num_drones (int): Number of drones in swarm (e.g., 5, 7, 19)
+        sb (float): Base spacing parameter (m)
+        sv (float): Variable spacing range (m)
+        map_length (float): Total map length in X direction (m)
+        tolerance (float): Safety buffer beyond swarm radius (m)
+        packing_efficiency (float): Real vs theoretical packing (default 0.85)
+    
+    Returns:
+        tuple: (finish_line_x, swarm_radius, n_rings)
+            - finish_line_x: X-coordinate for finish line (m)
+            - swarm_radius: Predicted maximum swarm radius (m)
+            - n_rings: Number of hexagonal rings
+    
+    Example:
+        >>> finish_x, radius, rings = calculate_finish_line(7)
+        >>> print(f"7 drones: finish at {finish_x:.2f}m, radius {radius:.2f}m")
+        7 drones: finish at 5.29m, radius 0.96m
+    """
+    # Calculate maximum d_des (in darkest region where swarm is loosest)
+    sigma_max = sb + sv  # 0.3 + 0.5 = 0.8m
+    d_des_max = sigma_max * math.sqrt(2)  # ≈ 1.13m
+    
+    # Calculate number of hexagonal rings for this swarm size
+    if num_drones == 1:
+        n_rings = 0
+        swarm_radius = 0.1  # Single drone, minimal radius
+    else:
+        # Solve 3n² + 3n + 1 = N for n (hexagonal packing formula)
+        n = (-3 + math.sqrt(9 + 12*(num_drones - 1))) / 6
+        n_rings = math.ceil(n)  # Round up for incomplete outer ring
+        
+        # # Calculate radius with packing efficiency correction
+        # swarm_radius = n_rings * d_des_max * packing_efficiency
+        # # Calculate radius without packing efficiency correction
+        swarm_radius = n_rings * d_des_max 
+    
+    # Calculate finish line: map_length - radius - tolerance
+    finish_line_x = map_length - swarm_radius - tolerance
+    
+    # Validation: Ensure finish line is reasonable
+    if finish_line_x < map_length * 0.75:
+        print(f"⚠️  WARNING: Finish line at {finish_line_x:.2f}m is less than halfway!")
+        print(f"    Consider: smaller swarm, larger map, or smaller tolerance")
+    
+    # Debug output
+    print(f"📐 Finish Line Calculation:")
+    print(f"   Swarm: {num_drones} drones in {n_rings} hexagonal rings")
+    print(f"   d_des_max: {d_des_max:.3f}m (σ_max={sigma_max:.1f}m)")
+    print(f"   Predicted radius: {swarm_radius:.3f}m (theoretical)")
+    print(f"   Safety tolerance: {tolerance:.3f}m")
+    print(f"   Finish line: X = {finish_line_x:.3f}m")
+    
+    return finish_line_x, swarm_radius, n_rings
+
 
 # Configuration
 DEFAULT_DRONES = DroneModel("cf2x")
@@ -407,7 +474,8 @@ class FlockingUtils2DWithLightSensor:
         # This function needs to return 3 values for compatibility, returning dummy values for hz
         return self.headings, np.zeros(self.n_agents), np.zeros(self.n_agents)
 
-def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42):
+def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42, 
+        num_drones=NUM_DRONES, map_length=WORLD_SIZE_X):
     """
     Run 2D flocking simulation with gradient following.
     
@@ -416,6 +484,8 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42):
         seed: Explicit random seed (overrides base_seed + run_number)
         run_number: Run number for batch experiments (combined with base_seed)
         base_seed: Base seed for all experiments (default: 42)
+        num_drones: Number of drones in swarm (default: NUM_DRONES)
+        map_length: Map length in X direction for finish line calculation (default: WORLD_SIZE_X)
     """
     print("=== 2D Flocking with Gradient Following (Built on REAL FlockingUtils) ===")
     print("This extends the proven FlockingUtils foundation")
@@ -444,6 +514,22 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42):
     np.random.seed(actual_seed)
     print(f"   → All random operations (initial headings, sensor noise) will be reproducible")
     
+    # ============================================
+    # FINISH LINE CALCULATION (Dynamic based on swarm size)
+    # ============================================
+    
+    # Calculate finish line position based on swarm geometry
+    FINISH_LINE_X, predicted_swarm_radius, n_rings = calculate_finish_line(
+        num_drones=num_drones,
+        sb=0.3,  # Base spacing (matches FlockingUtils2DWithLightSensor)
+        sv=0.5,  # Variable spacing range
+        map_length=map_length,
+        tolerance=0.20,  # Fixed tolerance for now (can be updated after baseline runs)
+        packing_efficiency=0.85  # Empirical correction for real (non-perfect) swarms
+    )
+    print(f"   → Finish line dynamically set for {num_drones} drones")
+    print()
+    
     # Set performance mode (change this to "fast" for maximum speed!)
     # set_performance_mode("fast")  # Options: "fast", "balanced", "accurate"
     set_performance_mode("headless_accurate")
@@ -451,23 +537,23 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42):
 
     # Create 2D wrapper with gradient following capability
     f_util = FlockingUtils2DWithLightSensor(
-        n_agents=NUM_DRONES,
+        n_agents=num_drones,
         center_x=init_center_x, center_y=init_center_y, center_z=init_center_z, 
         spacing=spacing
     )
     pos_xs, pos_ys, pos_zs, pos_h_xc, pos_h_yc, pos_h_zc = f_util.initialize_positions()
 
     # Create 3D positions for environment (but Z will be constrained)
-    INIT_XYZ = np.zeros([NUM_DRONES, 3])
+    INIT_XYZ = np.zeros([num_drones, 3])
     INIT_XYZ[:, 0] = pos_xs
     INIT_XYZ[:, 1] = pos_ys  
     INIT_XYZ[:, 2] = pos_zs  # All should be FIXED_HEIGHT
-    INIT_RPY = np.array([[.0, .0, .0] for _ in range(NUM_DRONES)])
+    INIT_RPY = np.array([[.0, .0, .0] for _ in range(num_drones)])
 
     # Create environment with performance optimizations
     env = CtrlAviary(
         drone_model=DEFAULT_DRONES,
-        num_drones=NUM_DRONES,
+        num_drones=num_drones,
         initial_xyzs=INIT_XYZ,
         initial_rpys=INIT_RPY,
         physics=DEFAULT_PHYSICS,
@@ -498,11 +584,11 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42):
         print("🚀 Running in HEADLESS mode for maximum speed!")
 
     # Create controllers (same as always!)
-    ctrl = [DSLPIDControl(drone_model=DEFAULT_DRONES) for i in range(NUM_DRONES)]
+    ctrl = [DSLPIDControl(drone_model=DEFAULT_DRONES) for i in range(num_drones)]
 
     #### Initialize the logger #################################
     logger = Logger(logging_freq_hz=OPTIMIZED_CONTROL_FREQ_HZ,
-                    num_drones=NUM_DRONES,
+                    num_drones=num_drones,
                     output_folder=DEFAULT_OUTPUT_FOLDER,
                     )
 
@@ -516,7 +602,7 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42):
         print("🖥️  GUI MODE: Visual rendering enabled")
 
     START = time.time()
-    action = np.zeros((NUM_DRONES, 4))
+    action = np.zeros((num_drones, 4))
     
     # Calculate expected simulation time
     expected_simulation_time = duration_sec
@@ -539,7 +625,7 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42):
         snapshot_interval=5,
         gui=DEFAULT_GUI and not ENABLE_HEADLESS_MODE,
         performance_mode="headless_accurate" if ENABLE_HEADLESS_MODE else "accurate",
-        finish_line_x=5.5,  # Finish line at X=5.5m (right side)
+        finish_line_x=FINISH_LINE_X,  # Dynamically calculated based on swarm size
         finish_line_enabled=True,
         experiment_name="",  # Will be auto-generated
         notes="",
@@ -607,11 +693,11 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42):
         obs, reward, done, info, _ = env.step(action)
         
         # Get current positions from observations
-        pos_x = np.zeros(NUM_DRONES)
-        pos_y = np.zeros(NUM_DRONES)
-        pos_z = np.zeros(NUM_DRONES)
+        pos_x = np.zeros(num_drones)
+        pos_y = np.zeros(num_drones)
+        pos_z = np.zeros(num_drones)
 
-        for j in range(NUM_DRONES):
+        for j in range(num_drones):
             states = env._getDroneStateVector(j)
             pos_x[j] = states[0]
             pos_y[j] = states[1]
@@ -626,7 +712,7 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42):
         current_time = i / env.CTRL_FREQ
         
         # 1. Light intensity
-        light_readings = [read_light_intensity(pos_x[j], pos_y[j], add_noise=False) for j in range(NUM_DRONES)]
+        light_readings = [read_light_intensity(pos_x[j], pos_y[j], add_noise=False) for j in range(num_drones)]
         avg_light_intensity = np.mean(light_readings)
         
         # 2. Swarm centroid position
@@ -642,12 +728,12 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42):
         distance_from_start = centroid_x - initial_centroid_x
         
         # 4. Swarm speed (from velocities)
-        speeds = [np.sqrt(velocities_2d[j][0]**2 + velocities_2d[j][1]**2) for j in range(NUM_DRONES)]
+        speeds = [np.sqrt(velocities_2d[j][0]**2 + velocities_2d[j][1]**2) for j in range(num_drones)]
         avg_speed = np.mean(speeds)
         
         # 5. Swarm cohesion (radius from centroid)
         distances_from_centroid = [np.sqrt((pos_x[j] - centroid_x)**2 + (pos_y[j] - centroid_y)**2) 
-                                   for j in range(NUM_DRONES)]
+                                   for j in range(num_drones)]
         swarm_radius = np.mean(distances_from_centroid)
         
         # Store all metrics (legacy lists)
@@ -704,7 +790,7 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42):
                   f"🎯 Radius: {swarm_radius:.2f}m")
 
         # Apply control for each drone (same structure as before)
-        for j in range(NUM_DRONES):
+        for j in range(num_drones):
             # Target position: current XY + fixed Z (same as before)
             target_pos = np.array([
                 pos_x[j],      # Current X (will be changed by velocity)
@@ -738,7 +824,7 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42):
     real_time_factor = expected_simulation_time / actual_real_time if actual_real_time > 0 else 0
     
     # Finalize experiment data with one last snapshot at final time
-    final_positions = np.column_stack([pos_x, pos_y, [FIXED_HEIGHT] * NUM_DRONES])
+    final_positions = np.column_stack([pos_x, pos_y, [FIXED_HEIGHT] * num_drones])
     exp_data.add_datapoint(
         time=current_time,
         centroid_x=centroid_x,
@@ -831,10 +917,16 @@ if __name__ == "__main__":
                        help='Run number for batch experiments (seed = base_seed + run_number)')
     parser.add_argument('--base-seed', type=int, default=42,
                        help='Base seed for batch experiments (default: 42)')
+    parser.add_argument('--num-drones', type=int, default=NUM_DRONES,
+                       help=f'Number of drones in swarm (default: {NUM_DRONES})')
+    parser.add_argument('--map-length', type=float, default=WORLD_SIZE_X,
+                       help=f'Map length in X direction for finish line calculation (default: {WORLD_SIZE_X}m)')
     
     args = parser.parse_args()
     
     run(duration_sec=args.duration, 
         seed=args.seed,
         run_number=args.run_number,
-        base_seed=args.base_seed)
+        base_seed=args.base_seed,
+        num_drones=args.num_drones,
+        map_length=args.map_length)
