@@ -5,10 +5,10 @@ import os
 
 # --- Configuration ---
 # Dimensions calculated from: world_size / step_size (step_size = 0.04 from dm_ds_v2.py)
-# WORLD_SIZE_X = 6.5m -> 6.5 / 0.04 = 162.5 ≈ 163 pixels
+# WORLD_SIZE_X = 20.0m -> 20.0 / 0.04 = 500 pixels
 # WORLD_SIZE_Y = 4.0m -> 4.0 / 0.04 = 100 pixels
-WIDTH = 163  # Changed from 650 to match coordinate mapping
-HEIGHT = 100  # Changed from 400 to match coordinate mapping
+WIDTH = 500  # Updated for 20m world (was 163 for 6.5m)
+HEIGHT = 100  # Unchanged (still 4.0m)
 OUTPUT_DIR = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient"
 
 # Ensure the output directory exists
@@ -347,6 +347,6 @@ if __name__ == "__main__":
     print("\n--- Generating Custom Path Examples ---")
     custom_examples = generate_custom_path_examples(WIDTH, HEIGHT)
     for name, gradient in custom_examples.items():
-        normalize_and_save(gradient, f"path_example_{name}.png", invert_colors=False)
+        normalize_and_save(gradient, f"path_example_{WIDTH*0.04}_{name}.png", invert_colors=False)
 
     print("\nAll gradients generated successfully!")

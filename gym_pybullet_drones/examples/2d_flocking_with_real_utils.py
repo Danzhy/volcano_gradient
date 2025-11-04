@@ -38,9 +38,10 @@ GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-dron
 GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/path_example_exponential.png"
 GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/linear_4x65.png"
 GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/path_example_sine_curve.png"
+GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/path_example_20.0_sine_curve.png"
 # GRADIENT_MAP_PATH = "gym-pybullet-drones-3DAE/maps_gradient/sine_wave_nice_inverted.png"
-WORLD_SIZE_X = 6.5  # meters (matches dm_ds_v2.py)
-WORLD_SIZE_Y = 4.0  # meters (matches dm_ds_v2.py)
+WORLD_SIZE_X = 20.0  # meters - Expanded for larger swarms
+WORLD_SIZE_Y = 4.0   # meters (matches dm_ds_v2.py)
 
 # Load gradient map (will be used in future steps)
 try:
