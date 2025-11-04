@@ -1,0 +1,58 @@
+{
+  "batch_id": "batch_11.05.2025_02.35.09",
+  "timestamp": "11.05.2025_02.35.09",
+  "configuration": {
+    "num_drones": 7,
+    "alignment_enabled": true,
+    "desired_spacing": 0.8,
+    "attraction_strength": 0.5,
+    "repulsion_strength": 1.0,
+    "alignment_strength": 0.3,
+    "light_influence": 0.2,
+    "gradient_map": "path_example_20.0_sine_curve.png",
+    "world_size_x": 20.0,
+    "world_size_y": 4.0,
+    "finish_line_x": 18.668629150101523,
+    "finish_line_enabled": true,
+    "max_duration": 240,
+    "performance_mode": "headless_accurate",
+    "base_seed": 42
+  },
+  "num_runs": 2,
+  "success_count": 2,
+  "failure_count": 0,
+  "success_rate_percent": 100.0,
+  "total_wall_clock_time": 49.17625594139099,
+  "avg_time_per_run": 24.588127970695496,
+  "completion_time_mean": 168.29166666666669,
+  "completion_time_std": 1.5833333333333286,
+  "completion_time_min": 166.70833333333334,
+  "completion_time_max": 169.875,
+  "completion_time_median": 168.29166666666669,
+  "completion_time_q1": 167.5,
+  "completion_time_q3": 169.08333333333334,
+  "results": [
+    {
+      "run_number": 1,
+      "experiment_id": "exp_a5344d60_11.05.2025_02.35.11",
+      "success": true,
+      "time_to_finish": 169.875,
+      "actual_duration": 21.874534845352173,
+      "real_time_factor": 10.971661875177857,
+      "final_centroid_x": 18.568816651951575,
+      "final_light_intensity": 65.14285714285714,
+      "wall_clock_time": 23.612242937088013
+    },
+    {
+      "run_number": 2,
+      "experiment_id": "exp_a5344d60_11.05.2025_02.35.36",
+      "success": true,
+      "time_to_finish": 166.70833333333334,
+      "actual_duration": 21.164029836654663,
+      "real_time_factor": 11.339995353074785,
+      "final_centroid_x": 18.570308123315044,
+      "final_light_intensity": 64.85714285714286,
+      "wall_clock_time": 22.610387325286865
+    }
+  ]
+}
