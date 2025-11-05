@@ -31,16 +31,24 @@ from swarm_visualization import create_drone_position_overlay, create_analysis_d
 from experiment_data import ExperimentConfig, ExperimentData, check_success
 
 # Gradient map settings (matching dm_ds_v2.py approach)
-# GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/linear_gradient.png"
-# GRADIENT_MAP_PATH = "gym-pybullet-drones-3DAE/maps_gradient/parabolic_funnel.png"
-GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/parabolic_funnel.png"
-GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/sine_wave_ramped_with_banks.png"
-GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/path_example_exponential.png"
-GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/linear_4x65.png"
-GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/path_example_sine_curve.png"
-GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/path_example_20.0_sine_curve.png"
-GRADIENT_MAP_PATH = "/home/ksb8405/Documents/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/path_example_20.0_sine_curve_thick001_freq2.png"
-# GRADIENT_MAP_PATH = "gym-pybullet-drones-3DAE/maps_gradient/sine_wave_nice_inverted.png"
+# Auto-detect which computer we're on by checking which base path exists
+_MAC_BASE = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE"
+_LINUX_BASE = "/home/ksb8405/Documents/PyBullet/gym-pybullet-drones-3DAE"
+
+# Determine base path based on which directory exists
+if os.path.exists(_MAC_BASE):
+    BASE_PATH = _MAC_BASE
+elif os.path.exists(_LINUX_BASE):
+    BASE_PATH = _LINUX_BASE
+else:
+    # Fallback: use current working directory
+    BASE_PATH = os.getcwd()
+    print(f"⚠️  WARNING: Neither Mac nor Linux path found, using cwd: {BASE_PATH}")
+
+# Default gradient map (relative to BASE_PATH)
+DEFAULT_MAP_NAME = "path_example_20.0_sine_curve_thick001_freq2.png"
+GRADIENT_MAP_PATH = os.path.join(BASE_PATH, "maps_gradient", DEFAULT_MAP_NAME)
+
 WORLD_SIZE_X = 20.0  # meters - Expanded for larger swarms
 WORLD_SIZE_Y = 4.0   # meters (matches dm_ds_v2.py)
 
@@ -525,9 +533,8 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
     
     # Determine which gradient map to use
     if gradient_map_name:
-        # Use the specified gradient map name
-        gradient_map_path = f"/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/path_example_20.0_{gradient_map_name}.png"
-        gradient_map_path = f"/home/ksb8405/Documents/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/path_example_20.0_{gradient_map_name}.png"
+        # Use the specified gradient map name (auto-detects correct base path)
+        gradient_map_path = os.path.join(BASE_PATH, "maps_gradient", f"path_example_20.0_{gradient_map_name}.png")
         print(f"🗺️  Using gradient map: {gradient_map_name}")
     else:
         # Use the default from GRADIENT_MAP_PATH constant
@@ -539,6 +546,18 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
         print(f"⚠️  WARNING: Gradient map not found at {gradient_map_path}")
         print(f"   Falling back to default: {GRADIENT_MAP_PATH}")
         gradient_map_path = GRADIENT_MAP_PATH
+    
+    # **FIX**: Reload the gradient map if it's different from the global one
+    global gradient_map
+    if gradient_map_path != GRADIENT_MAP_PATH or gradient_map_name is not None:
+        try:
+            gradient_map = np.array(Image.open(gradient_map_path).convert('L'))
+            print(f"✅ Gradient map reloaded: {gradient_map.shape} pixels from {os.path.basename(gradient_map_path)}")
+        except FileNotFoundError:
+            print(f"❌ ERROR: Failed to load gradient map from {gradient_map_path}")
+            print(f"   Using previously loaded map instead")
+    else:
+        print(f"ℹ️  Using already-loaded gradient map: {gradient_map.shape} pixels")
     
     # ============================================
     # FINISH LINE CALCULATION (Dynamic based on swarm size)
