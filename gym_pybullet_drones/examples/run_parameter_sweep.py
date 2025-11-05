@@ -46,15 +46,16 @@ PARAMETER_SPACE = {
 }
 PARAMETER_SPACE = {
     # Primary parameters (high impact)
-    'num_drones': [5]                   # Swarm size
-    # 'alignment': [True, False],                # Alignment on/off
-    # 'gradient_map': ['sine_curve_thick1_freq2', 
-    #                  'sine_curve_thick01_freq2',
-    #                  'sine_curve_thick01_freq4',
+    'num_drones': [7, 10, 19, 37],                  # Swarm size
+    'alignment': [True],                # Alignment on/off
+    'gradient_map': ['sine_curve_thick01_freq2'
+                    #  'sine_curve_thick1_freq2',
+                    #  'sine_curve_thick01_freq4',
     #                  'sine_curve_thick000001_freq4'
     #                  ],  # Path type
                     #  'sine_curve_thick000001_freq2',
                     #  'sine_curve_thick000001_freq8'                     
+                    ]
     
     # Secondary parameters (uncomment to explore)
     # 'max_velocity': [0.10, 0.15, 0.20],      # Max linear velocity
