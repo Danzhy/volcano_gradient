@@ -286,7 +286,7 @@ def generate_custom_path_examples(width, height):
     def sine_curve_path(x):
         """Simple sine wave"""
         amplitude = height / 4
-        frequency = 8 * np.pi / width  # One complete cycle
+        frequency = 4 * np.pi / width  # One complete cycle
         return amplitude * np.sin(frequency * x) + height / 2
     
     # Generate thickened versions with dark paths
@@ -295,7 +295,7 @@ def generate_custom_path_examples(width, height):
         'exponential': thicken_path(exponential_path, width, height, thickness=0.001, invert=True),
         'zigzag': thicken_path(zigzag_path, width, height, thickness=0.05, invert=True),
         'circular_arc': thicken_path(circular_arc_path, width, height, thickness=0.06, invert=True),
-        'sine_curve_thick000001_freq8': thicken_path(sine_curve_path, width, height, thickness=0.000001, invert=True),
+        'sine_curve_thick01_freq4': thicken_path(sine_curve_path, width, height, thickness=0.01, invert=True),
     }
     
     # Create exponential with left-to-right gradient

@@ -478,7 +478,8 @@ class FlockingUtils2DWithLightSensor:
         return self.headings, np.zeros(self.n_agents), np.zeros(self.n_agents)
 
 def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42, 
-        num_drones=NUM_DRONES, map_length=WORLD_SIZE_X, alignment_enabled=True):
+        num_drones=NUM_DRONES, map_length=WORLD_SIZE_X, alignment_enabled=True, 
+        gradient_map_name=None):
     """
     Run 2D flocking simulation with gradient following.
     
@@ -516,6 +517,26 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
     # Set numpy random seed for reproducibility
     np.random.seed(actual_seed)
     print(f"   → All random operations (initial headings, sensor noise) will be reproducible")
+    
+    # ============================================
+    # GRADIENT MAP SELECTION
+    # ============================================
+    
+    # Determine which gradient map to use
+    if gradient_map_name:
+        # Use the specified gradient map name
+        gradient_map_path = f"/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/path_example_20.0_{gradient_map_name}.png"
+        print(f"🗺️  Using gradient map: {gradient_map_name}")
+    else:
+        # Use the default from GRADIENT_MAP_PATH constant
+        gradient_map_path = GRADIENT_MAP_PATH
+        print(f"🗺️  Using default gradient map: {os.path.basename(GRADIENT_MAP_PATH)}")
+    
+    # Verify the gradient map exists
+    if not os.path.exists(gradient_map_path):
+        print(f"⚠️  WARNING: Gradient map not found at {gradient_map_path}")
+        print(f"   Falling back to default: {GRADIENT_MAP_PATH}")
+        gradient_map_path = GRADIENT_MAP_PATH
     
     # ============================================
     # FINISH LINE CALCULATION (Dynamic based on swarm size)
@@ -622,7 +643,7 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
         init_xyzs=INIT_XYZ,
         alignment_enabled=alignment_enabled,  # Can be controlled via command line
         desired_spacing=spacing,
-        gradient_map_path=GRADIENT_MAP_PATH,
+        gradient_map_path=gradient_map_path,  # Use determined gradient map path
         world_size_x=WORLD_SIZE_X,
         world_size_y=WORLD_SIZE_Y,
         duration_sec=duration_sec,
@@ -756,7 +777,7 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
             # Only create visualization if not in batch mode
             if not BATCH_MODE:
                 create_drone_position_overlay(
-                    pos_x, pos_y, GRADIENT_MAP_PATH, WORLD_SIZE_X, WORLD_SIZE_Y,
+                    pos_x, pos_y, gradient_map_path, WORLD_SIZE_X, WORLD_SIZE_Y,
                     snapshots_folder, timestamp=timestamp_str, show_plot=False
                 )
             
@@ -861,11 +882,11 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
         # Create overlay of final positions (save to experiment folder)
         print("\n📸 Creating final position overlays...")
         create_drone_position_overlay(
-            pos_x, pos_y, GRADIENT_MAP_PATH, WORLD_SIZE_X, WORLD_SIZE_Y, 
+            pos_x, pos_y, gradient_map_path, WORLD_SIZE_X, WORLD_SIZE_Y, 
             experiment_folder, timestamp="final", show_plot=False
         )
         create_drone_position_overlay(
-            pos_x, pos_y, GRADIENT_MAP_PATH, WORLD_SIZE_X, WORLD_SIZE_Y,
+            pos_x, pos_y, gradient_map_path, WORLD_SIZE_X, WORLD_SIZE_Y,
             snapshots_folder, timestamp="final", show_plot=True
         )
         
@@ -879,7 +900,7 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
             distance_from_start_data=distance_from_start_data,
             speed_data=speed_data,
             swarm_radius_data=swarm_radius_data,
-            gradient_map_path=GRADIENT_MAP_PATH,
+            gradient_map_path=gradient_map_path,
             world_size_x=WORLD_SIZE_X,
             world_size_y=WORLD_SIZE_Y,
             output_folder=experiment_folder
@@ -927,6 +948,8 @@ if __name__ == "__main__":
                        help=f'Map length in X direction for finish line calculation (default: {WORLD_SIZE_X}m)')
     parser.add_argument('--alignment', type=str, choices=['true', 'false'], default=None,
                        help='Enable/disable alignment (default: enabled)')
+    parser.add_argument('--gradient-map', type=str, default=None,
+                       help='Gradient map filename without path or extension (e.g., sine_curve_thick1_freq2)')
     
     args = parser.parse_args()
     
@@ -941,4 +964,5 @@ if __name__ == "__main__":
         base_seed=args.base_seed,
         num_drones=args.num_drones,
         map_length=args.map_length,
-        alignment_enabled=alignment_enabled)
+        alignment_enabled=alignment_enabled,
+        gradient_map_name=args.gradient_map)

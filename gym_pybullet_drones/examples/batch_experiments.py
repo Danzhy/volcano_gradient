@@ -30,7 +30,8 @@ from experiment_data import ExperimentData
 
 
 def run_single_experiment(run_number: int, batch_folder: str, duration_sec: int, 
-                         num_drones: Optional[int] = None, alignment: Optional[bool] = None) -> Dict[str, Any]:
+                         num_drones: Optional[int] = None, alignment: Optional[bool] = None,
+                         gradient_map: Optional[str] = None) -> Dict[str, Any]:
     """
     Run a single experiment and return results.
     
@@ -74,6 +75,10 @@ def run_single_experiment(run_number: int, batch_folder: str, duration_sec: int,
         # Add optional alignment parameter
         if alignment is not None:
             cmd.extend(['--alignment', 'true' if alignment else 'false'])
+        
+        # Add optional gradient_map parameter
+        if gradient_map is not None:
+            cmd.extend(['--gradient-map', gradient_map])
         
         result = subprocess.run(
             cmd,
@@ -148,7 +153,8 @@ def run_single_experiment(run_number: int, batch_folder: str, duration_sec: int,
         }
 
 
-def create_batch_summary_visualization(results: List[Dict[str, Any]], output_path: str):
+def create_batch_summary_visualization(results: List[Dict[str, Any]], output_path: str, 
+                                       configuration: Optional[Dict[str, Any]] = None):
     """
     Create comprehensive visualization of batch results.
     
@@ -156,6 +162,7 @@ def create_batch_summary_visualization(results: List[Dict[str, Any]], output_pat
     - Success rate bar
     - Histogram of completion times
     - Box plot of completion times
+    - Configuration info (if provided)
     """
     # Filter successful runs
     successful_runs = [r for r in results if r.get('success', False)]
@@ -163,7 +170,26 @@ def create_batch_summary_visualization(results: List[Dict[str, Any]], output_pat
     
     # Create figure with 3 subplots
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    fig.suptitle('Batch Experiment Results', fontsize=16, fontweight='bold')
+    
+    # Create title with configuration info
+    title = 'Batch Experiment Results'
+    if configuration:
+        # Format key configuration parameters
+        config_parts = []
+        if configuration.get('num_drones'):
+            config_parts.append(f"n={configuration['num_drones']}")
+        if configuration.get('alignment_enabled') is not None:
+            align_str = "align=ON" if configuration['alignment_enabled'] else "align=OFF"
+            config_parts.append(align_str)
+        if configuration.get('world_size_x'):
+            config_parts.append(f"map={configuration['world_size_x']:.0f}m")
+        if configuration.get('finish_line_x'):
+            config_parts.append(f"finish={configuration['finish_line_x']:.1f}m")
+        
+        if config_parts:
+            title += f"\n({', '.join(config_parts)})"
+    
+    fig.suptitle(title, fontsize=16, fontweight='bold')
     
     # 1. Success Rate Bar Chart
     ax1 = axes[0]
@@ -228,6 +254,35 @@ def create_batch_summary_visualization(results: List[Dict[str, Any]], output_pat
         ax3.text(0.5, 0.5, 'No successful runs', ha='center', va='center', fontsize=14)
         ax3.set_title('Completion Time Statistics', fontsize=12, fontweight='bold')
     
+    # Add configuration details text box if configuration provided
+    if configuration:
+        config_text_parts = []
+        config_text_parts.append("Configuration:")
+        
+        # Key parameters
+        if configuration.get('num_drones'):
+            config_text_parts.append(f"  Drones: {configuration['num_drones']}")
+        if configuration.get('alignment_enabled') is not None:
+            align_str = "Enabled" if configuration['alignment_enabled'] else "Disabled"
+            config_text_parts.append(f"  Alignment: {align_str}")
+        if configuration.get('desired_spacing'):
+            config_text_parts.append(f"  Spacing: {configuration['desired_spacing']:.2f}m")
+        if configuration.get('world_size_x') and configuration.get('world_size_y'):
+            config_text_parts.append(f"  World: {configuration['world_size_x']:.0f}×{configuration['world_size_y']:.0f}m")
+        if configuration.get('finish_line_x'):
+            config_text_parts.append(f"  Finish: {configuration['finish_line_x']:.2f}m")
+        if configuration.get('gradient_map'):
+            config_text_parts.append(f"  Map: {configuration['gradient_map']}")
+        if configuration.get('base_seed'):
+            config_text_parts.append(f"  Seed: {configuration['base_seed']}")
+        
+        config_text = '\n'.join(config_text_parts)
+        
+        # Add text box below the plots
+        fig.text(0.5, -0.02, config_text, ha='center', va='top', fontsize=9,
+                bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.3),
+                family='monospace')
+    
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     print(f"📊 Batch summary visualization saved to: {output_path}")
@@ -239,7 +294,8 @@ def run_batch_experiments(
     duration_sec: int = 240,
     base_output_folder: str = "results_batch",
     num_drones: Optional[int] = None,
-    alignment: Optional[bool] = None
+    alignment: Optional[bool] = None,
+    gradient_map: Optional[str] = None
 ):
     """
     Run multiple experiments sequentially and gather statistics.
@@ -250,6 +306,7 @@ def run_batch_experiments(
         base_output_folder: Base folder for batch results
         num_drones: Number of drones (None = use default)
         alignment: Enable/disable alignment (None = use default)
+        gradient_map: Gradient map filename (None = use default)
     """
     print("="*70)
     print("🚀 BATCH EXPERIMENT RUNNER")
@@ -275,7 +332,7 @@ def run_batch_experiments(
     results = []
     
     for run_num in range(1, num_runs + 1):
-        result = run_single_experiment(run_num, batch_folder, duration_sec, num_drones, alignment)
+        result = run_single_experiment(run_num, batch_folder, duration_sec, num_drones, alignment, gradient_map)
         results.append(result)
         
         # Print progress
@@ -394,7 +451,7 @@ def run_batch_experiments(
     
     # Create visualization
     viz_path = os.path.join(batch_folder, "batch_summary_visualization.png")
-    create_batch_summary_visualization(results, viz_path)
+    create_batch_summary_visualization(results, viz_path, configuration)
     print(f"   - Visualization: {viz_path}")
     
     print(f"\n📁 All experiment data in: {batch_folder}")
@@ -423,6 +480,8 @@ if __name__ == "__main__":
                        help='Number of drones (default: use simulation default)')
     parser.add_argument('--alignment', type=str, choices=['true', 'false'], default=None,
                        help='Enable/disable alignment (default: use simulation default)')
+    parser.add_argument('--gradient-map', type=str, default=None,
+                       help='Gradient map filename without path or extension (e.g., sine_curve_thick1_freq2)')
     
     args = parser.parse_args()
     
@@ -441,5 +500,6 @@ if __name__ == "__main__":
         duration_sec=args.duration,
         base_output_folder=args.output,
         num_drones=args.num_drones,
-        alignment=alignment
+        alignment=alignment,
+        gradient_map=args.gradient_map
     )
