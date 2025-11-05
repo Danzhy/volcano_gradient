@@ -74,13 +74,15 @@ def create_drone_position_overlay(
             map_x_clipped = np.clip(map_x, 0, img.height - 1)
             map_y_clipped = np.clip(map_y, 0, img.width - 1)
             
-            # Draw a circle for the drone
-            radius = 5
+            # Draw a circle for the drone (scaled to actual drone size)
+            # CF2X drone diameter: ~0.112m, radius ~0.056m
+            # At 25 pixels/meter, 0.056m = 1.4 pixels radius
+            radius = 1.5  # pixels (≈6cm radius = 12cm diameter, close to real 11cm)
             draw.ellipse(
                 (map_y_clipped - radius, map_x_clipped - radius, 
                  map_y_clipped + radius, map_x_clipped + radius),
                 fill='red',
-                outline='white'
+                outline='black'
             )
             
         # Save the image
