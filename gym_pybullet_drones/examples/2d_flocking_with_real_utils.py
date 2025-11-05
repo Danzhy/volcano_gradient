@@ -39,6 +39,7 @@ GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-dron
 GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/linear_4x65.png"
 GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/path_example_sine_curve.png"
 GRADIENT_MAP_PATH = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/path_example_20.0_sine_curve.png"
+GRADIENT_MAP_PATH = "/home/ksb8405/Documents/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/path_example_20.0_sine_curve_thick001_freq2.png"
 # GRADIENT_MAP_PATH = "gym-pybullet-drones-3DAE/maps_gradient/sine_wave_nice_inverted.png"
 WORLD_SIZE_X = 20.0  # meters - Expanded for larger swarms
 WORLD_SIZE_Y = 4.0   # meters (matches dm_ds_v2.py)
@@ -526,6 +527,7 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
     if gradient_map_name:
         # Use the specified gradient map name
         gradient_map_path = f"/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/path_example_20.0_{gradient_map_name}.png"
+        gradient_map_path = f"/home/ksb8405/Documents/PyBullet/gym-pybullet-drones-3DAE/maps_gradient/path_example_20.0_{gradient_map_name}.png"
         print(f"🗺️  Using gradient map: {gradient_map_name}")
     else:
         # Use the default from GRADIENT_MAP_PATH constant
@@ -639,7 +641,7 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
     
     # Create experiment configuration
     exp_config = ExperimentConfig(
-        num_drones=NUM_DRONES,
+        num_drones=num_drones,  # Use function parameter, not hardcoded constant
         init_xyzs=INIT_XYZ,
         alignment_enabled=alignment_enabled,  # Can be controlled via command line
         desired_spacing=spacing,

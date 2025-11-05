@@ -34,16 +34,35 @@ PARAMETER_SPACE = {
     'gradient_map': ['sine_curve_thick1_freq2', 
                      'sine_curve_thick01_freq2',
                      'sine_curve_thick01_freq4',
-                    #  'sine_curve_thick000001_freq2',
                      'sine_curve_thick000001_freq4'
-                    #  'sine_curve_thick000001_freq8'                     
                      ],  # Path type
+                    #  'sine_curve_thick000001_freq2',
+                    #  'sine_curve_thick000001_freq8'                     
     
     # Secondary parameters (uncomment to explore)
     # 'max_velocity': [0.10, 0.15, 0.20],      # Max linear velocity
     # 'alignment_weight': [0.5, 1.0, 1.5],     # Beta parameter
     # 'gradient_map': ['sine', 'funnel'],      # Path type
 }
+PARAMETER_SPACE = {
+    # Primary parameters (high impact)
+    'num_drones': [5]                   # Swarm size
+    # 'alignment': [True, False],                # Alignment on/off
+    # 'gradient_map': ['sine_curve_thick1_freq2', 
+    #                  'sine_curve_thick01_freq2',
+    #                  'sine_curve_thick01_freq4',
+    #                  'sine_curve_thick000001_freq4'
+    #                  ],  # Path type
+                    #  'sine_curve_thick000001_freq2',
+                    #  'sine_curve_thick000001_freq8'                     
+    
+    # Secondary parameters (uncomment to explore)
+    # 'max_velocity': [0.10, 0.15, 0.20],      # Max linear velocity
+    # 'alignment_weight': [0.5, 1.0, 1.5],     # Beta parameter
+    # 'gradient_map': ['sine', 'funnel'],      # Path type
+}
+
+
 
 # Experiment configuration
 NUM_RUNS_PER_CONFIG = 50      # Number of repetitions per configuration
@@ -230,7 +249,8 @@ def main():
     
     # Confirm before starting (unless quick mode)
     if not args.quick:
-        response = input("🤔 Ready to start? This will take a while. (yes/no): ")
+        # response = input("🤔 Ready to start? This will take a while. (yes/no): ")
+        response = 'y'
         if response.lower() not in ['yes', 'y']:
             print("❌ Sweep cancelled.")
             return
