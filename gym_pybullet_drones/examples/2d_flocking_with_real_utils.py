@@ -719,9 +719,9 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
         snapshots_folder = os.path.join(experiment_folder, "position_snapshots")
         os.makedirs(snapshots_folder, exist_ok=True)
         print(f"📁 Snapshots will be saved to: {snapshots_folder}")
-    
-    # Snapshot interval (every 5 seconds)
-    SNAPSHOT_INTERVAL = 5  # seconds
+
+    # Snapshot interval (every 15 seconds)
+    SNAPSHOT_INTERVAL = 15  # seconds
     last_snapshot_time = -SNAPSHOT_INTERVAL  # Force first snapshot at t=0
 
     # Main simulation loop - gradient following
