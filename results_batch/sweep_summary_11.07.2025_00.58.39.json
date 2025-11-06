@@ -1,0 +1,34 @@
+{
+  "mode": "QUICK TEST",
+  "parameter_space": {
+    "num_drones": [
+      7
+    ],
+    "alignment": [
+      true
+    ],
+    "gradient_map": [
+      "sine_curve_thick01_freq2"
+    ]
+  },
+  "num_configurations": 1,
+  "runs_per_config": 3,
+  "sweep_start_time": "2025-11-07T00:58:39.942088",
+  "sweep_end_time": "2025-11-07T00:58:39.974912",
+  "total_time_seconds": 0.032823801040649414,
+  "total_time_hours": 9.117722511291504e-06,
+  "successful_batches": 0,
+  "results": [
+    {
+      "config_name": "num_drones=7_alignment=on_gradient_map=sine_curve_thick01_freq2",
+      "config": {
+        "num_drones": 7,
+        "alignment": true,
+        "gradient_map": "sine_curve_thick01_freq2"
+      },
+      "success": false,
+      "elapsed_time": 0.03275728225708008,
+      "error": "Command '['python', 'gym_pybullet_drones/examples/batch_experiments.py', '--runs', '3', '--duration', '300', '--num-drones', '7', '--alignment', 'true', '--gradient-map', 'sine_curve_thick01_freq2']' returned non-zero exit status 1."
+    }
+  ]
+}

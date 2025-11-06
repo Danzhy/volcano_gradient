@@ -20,6 +20,9 @@ import json
 import itertools
 from typing import Dict, List, Any, Optional
 
+# Import duration scaling utility
+from gym_pybullet_drones.utils.utils import get_max_duration
+
 
 # ============================================================================
 # PARAMETER SPACE CONFIGURATION
@@ -45,17 +48,20 @@ PARAMETER_SPACE = {
     # 'gradient_map': ['sine', 'funnel'],      # Path type
 }
 PARAMETER_SPACE = {
-    # Primary parameters (high impact)
-    'num_drones': [7, 10, 19, 37],                  # Swarm size
-    'alignment': [True],                # Alignment on/off
-    'gradient_map': ['sine_curve_thick01_freq2'
-                    #  'sine_curve_thick1_freq2',
-                    #  'sine_curve_thick01_freq4',
-    #                  'sine_curve_thick000001_freq4'
-    #                  ],  # Path type
-                    #  'sine_curve_thick000001_freq2',
-                    #  'sine_curve_thick000001_freq8'                     
-                    ]
+    'num_drones': [7, 10, 19, 37],                  
+    'alignment': [True],                
+    'gradient_map': ['sine_curve_thick01_freq2']
+    
+    # Secondary parameters (uncomment to explore)
+    # 'max_velocity': [0.10, 0.15, 0.20],      # Max linear velocity
+    # 'alignment_weight': [0.5, 1.0, 1.5],     # Beta parameter
+    # 'gradient_map': ['sine', 'funnel'],      # Path type
+}
+
+QUICK_PARAMETER_SPACE = {
+    'num_drones': [10],                  
+    'alignment': [True],                
+    'gradient_map': ['sine_curve_thick01_freq2']
     
     # Secondary parameters (uncomment to explore)
     # 'max_velocity': [0.10, 0.15, 0.20],      # Max linear velocity
@@ -64,14 +70,13 @@ PARAMETER_SPACE = {
 }
 
 
-
 # Experiment configuration
 NUM_RUNS_PER_CONFIG = 50      # Number of repetitions per configuration
-DURATION_SEC = 300            # Max duration per run (seconds)
+DURATION_SEC = 300            # Base duration for smallest swarm (seconds)
 BASE_SEED = 42                # Base random seed for reproducibility
 
 # Quick mode (for testing)
-QUICK_MODE_RUNS = 3           # Reduced runs for quick testing
+QUICK_MODE_RUNS = 2           # Reduced runs for quick testing
 
 
 # ============================================================================
@@ -228,7 +233,7 @@ def main():
     mode_str = "QUICK TEST" if args.quick else "FULL SWEEP"
     
     # Generate all configurations
-    configurations = generate_configurations(PARAMETER_SPACE)
+    configurations = generate_configurations(QUICK_PARAMETER_SPACE) if args.quick else generate_configurations(PARAMETER_SPACE)
     
     print("\n" + "="*70)
     print(f"🔬 PARAMETER SWEEP - {mode_str}")
@@ -239,7 +244,14 @@ def main():
     print(f"\nTotal configurations: {len(configurations)}")
     print(f"Runs per configuration: {num_runs}")
     print(f"Total experiments: {len(configurations) * num_runs}")
-    print(f"Duration per run: {DURATION_SEC}s")
+    print(f"Base duration: {DURATION_SEC}s (scaled by swarm size)")
+    
+    # Show duration scaling
+    if 'num_drones' in PARAMETER_SPACE:
+        print(f"\n⏱️  Duration Scaling:")
+        for nd in sorted(PARAMETER_SPACE['num_drones']):
+            scaled_duration = get_max_duration(nd, base_duration=DURATION_SEC)
+            print(f"     {nd} drones → {scaled_duration}s")
     
     # Estimate time
     avg_time_per_run = 30  # seconds (rough estimate)
@@ -265,7 +277,11 @@ def main():
         print(f"# Configuration {i}/{len(configurations)}")
         print(f"{'#'*70}")
         
-        result = run_batch(config, num_runs, DURATION_SEC)
+        # Calculate appropriate duration based on swarm size
+        num_drones = config.get('num_drones', 7)  # default to 7 if not specified
+        duration = get_max_duration(num_drones, base_duration=DURATION_SEC)
+        
+        result = run_batch(config, num_runs, duration)
         results.append(result)
         
         # Progress update

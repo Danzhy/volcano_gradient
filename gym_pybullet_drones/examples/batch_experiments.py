@@ -28,6 +28,9 @@ sys.path.insert(0, str(script_dir))
 # Import the experiment data module
 from experiment_data import ExperimentData
 
+# Import duration scaling utility
+from gym_pybullet_drones.utils.utils import get_max_duration
+
 
 def run_single_experiment(run_number: int, batch_folder: str, duration_sec: int, 
                          num_drones: Optional[int] = None, alignment: Optional[bool] = None,
@@ -470,8 +473,8 @@ if __name__ == "__main__":
     )
     parser.add_argument('--runs', type=int, default=50,
                        help='Number of experiments to run (default: 50)')
-    parser.add_argument('--duration', type=int, default=240,
-                       help='Maximum duration per experiment in seconds (default: 240)')
+    parser.add_argument('--duration', type=int, default=None,
+                       help='Maximum duration per experiment in seconds (default: auto-scaled based on num_drones)')
     parser.add_argument('--output', type=str, default='results_batch',
                        help='Base output folder (default: results_batch)')
     parser.add_argument('--base-seed', type=int, default=42,
@@ -490,6 +493,16 @@ if __name__ == "__main__":
     if args.alignment:
         alignment = (args.alignment.lower() == 'true')
     
+    # Auto-scale duration based on num_drones if not specified
+    duration = args.duration
+    if duration is None:
+        if args.num_drones:
+            duration = get_max_duration(args.num_drones)
+            print(f"⏱️  Auto-scaled duration: {duration}s for {args.num_drones} drones")
+        else:
+            duration = 300  # default fallback
+            print(f"⏱️  Using default duration: {duration}s")
+    
     print(f"🎲 Random Seed Configuration:")
     print(f"   Base seed: {args.base_seed}")
     print(f"   Run seeds: {args.base_seed + 1} to {args.base_seed + args.runs}")
@@ -497,7 +510,7 @@ if __name__ == "__main__":
     
     run_batch_experiments(
         num_runs=args.runs,
-        duration_sec=args.duration,
+        duration_sec=duration,
         base_output_folder=args.output,
         num_drones=args.num_drones,
         alignment=alignment,

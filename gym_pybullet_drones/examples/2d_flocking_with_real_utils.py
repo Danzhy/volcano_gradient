@@ -14,7 +14,7 @@ sys.path.append('ants_2024/')
 from gym_pybullet_drones.utils.enums import DroneModel, Physics
 from gym_pybullet_drones.envs.CtrlAviary import CtrlAviary
 from gym_pybullet_drones.control.DSLPIDControl import DSLPIDControl
-from gym_pybullet_drones.utils.utils import sync, str2bool
+from gym_pybullet_drones.utils.utils import sync, str2bool, get_max_duration
 from gym_pybullet_drones.utils.Logger import Logger
 from ants_2024.flocking_utils import FlockingUtils
 import glob
@@ -955,8 +955,8 @@ if __name__ == "__main__":
                '  Reproduce specific run:        python %(prog)s --duration 240 --seed 47',
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument('--duration', type=int, default=DURATION_SEC,
-                       help=f'Simulation duration in seconds (default: {DURATION_SEC})')
+    parser.add_argument('--duration', type=int, default=None,
+                       help=f'Simulation duration in seconds (default: auto-scaled based on swarm size)')
     parser.add_argument('--seed', type=int, default=None,
                        help='Explicit random seed for reproducibility (overrides --run-number and base seed)')
     parser.add_argument('--run-number', type=int, default=None,
@@ -974,12 +974,15 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
+    # Auto-scale duration based on swarm size if not specified
+    duration = args.duration if args.duration is not None else get_max_duration(args.num_drones)
+    
     # Parse alignment argument
     alignment_enabled = True  # Default
     if args.alignment:
         alignment_enabled = (args.alignment.lower() == 'true')
     
-    run(duration_sec=args.duration, 
+    run(duration_sec=duration, 
         seed=args.seed,
         run_number=args.run_number,
         base_seed=args.base_seed,
