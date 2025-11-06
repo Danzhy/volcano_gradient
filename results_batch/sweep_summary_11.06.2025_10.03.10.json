@@ -1,0 +1,74 @@
+{
+  "mode": "FULL SWEEP",
+  "parameter_space": {
+    "num_drones": [
+      7,
+      10,
+      19,
+      37
+    ],
+    "alignment": [
+      true
+    ],
+    "gradient_map": [
+      "sine_curve_thick01_freq2"
+    ]
+  },
+  "num_configurations": 4,
+  "runs_per_config": 50,
+  "sweep_start_time": "2025-11-06T04:38:10.858119",
+  "sweep_end_time": "2025-11-06T10:03:10.872049",
+  "total_time_seconds": 19500.013929843903,
+  "total_time_hours": 5.416670536067751,
+  "successful_batches": 4,
+  "results": [
+    {
+      "config_name": "num_drones=7_alignment=on_gradient_map=sine_curve_thick01_freq2",
+      "config": {
+        "num_drones": 7,
+        "alignment": true,
+        "gradient_map": "sine_curve_thick01_freq2"
+      },
+      "success": true,
+      "elapsed_time": 1399.5638434886932,
+      "num_runs": 50,
+      "duration": 300
+    },
+    {
+      "config_name": "num_drones=10_alignment=on_gradient_map=sine_curve_thick01_freq2",
+      "config": {
+        "num_drones": 10,
+        "alignment": true,
+        "gradient_map": "sine_curve_thick01_freq2"
+      },
+      "success": true,
+      "elapsed_time": 2062.004571199417,
+      "num_runs": 50,
+      "duration": 300
+    },
+    {
+      "config_name": "num_drones=19_alignment=on_gradient_map=sine_curve_thick01_freq2",
+      "config": {
+        "num_drones": 19,
+        "alignment": true,
+        "gradient_map": "sine_curve_thick01_freq2"
+      },
+      "success": true,
+      "elapsed_time": 4609.484160423279,
+      "num_runs": 50,
+      "duration": 300
+    },
+    {
+      "config_name": "num_drones=37_alignment=on_gradient_map=sine_curve_thick01_freq2",
+      "config": {
+        "num_drones": 37,
+        "alignment": true,
+        "gradient_map": "sine_curve_thick01_freq2"
+      },
+      "success": true,
+      "elapsed_time": 11413.94561624527,
+      "num_runs": 50,
+      "duration": 300
+    }
+  ]
+}
