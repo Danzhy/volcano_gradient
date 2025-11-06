@@ -67,7 +67,7 @@ PARAMETER_SPACE = {
 
 # Experiment configuration
 NUM_RUNS_PER_CONFIG = 50      # Number of repetitions per configuration
-DURATION_SEC = 240            # Max duration per run (seconds)
+DURATION_SEC = 300            # Max duration per run (seconds)
 BASE_SEED = 42                # Base random seed for reproducibility
 
 # Quick mode (for testing)
