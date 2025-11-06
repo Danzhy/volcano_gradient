@@ -257,14 +257,14 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Consolidate from sweep summary file
-  python consolidate_results.py results_batch/sweep_summary_11.06.2025_10.03.10.json
+  # Use with sweep summary file (recommended)
+  python gym_pybullet_drones/examples/consolidate_results.py results_batch/sweep_summary_11.06.2025_10.03.10.json
   
-  # Consolidate specific batch folders
-  python consolidate_results.py --batches batch_11.06.2025_04.38.11 batch_11.06.2025_05.01.35
+  # Or use latest sweep automatically
+  python gym_pybullet_drones/examples/consolidate_results.py --latest
   
-  # Auto-find most recent sweep summary
-  python consolidate_results.py --latest
+  # Or specify batch folders directly
+  python gym_pybullet_drones/examples/consolidate_results.py --batches batch_11.06.2025_04.38.11 batch_11.06.2025_05.01.35
         """
     )
     
