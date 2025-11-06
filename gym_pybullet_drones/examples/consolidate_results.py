@@ -73,15 +73,20 @@ def extract_batch_metrics(batch_summary: Dict[str, Any]) -> Dict[str, Any]:
     else:
         avg_final_x = None
     
+    # Handle batches with no successful runs (completion_time fields may be missing)
+    completion_time_mean = batch_summary.get('completion_time_mean')
+    completion_time_std = batch_summary.get('completion_time_std')
+    completion_time_median = batch_summary.get('completion_time_median')
+    
     return {
         'num_drones': config['num_drones'],
         'alignment': 'ON' if config['alignment_enabled'] else 'OFF',
         'gradient_map': simplify_gradient_map_name(config['gradient_map']),
         'num_runs': batch_summary['num_runs'],
         'success_rate_percent': batch_summary['success_rate_percent'],
-        'completion_time_mean': round(batch_summary['completion_time_mean'], 2),
-        'completion_time_std': round(batch_summary['completion_time_std'], 2),
-        'completion_time_median': round(batch_summary['completion_time_median'], 2),
+        'completion_time_mean': round(completion_time_mean, 2) if completion_time_mean else None,
+        'completion_time_std': round(completion_time_std, 2) if completion_time_std else None,
+        'completion_time_median': round(completion_time_median, 2) if completion_time_median else None,
         'finish_line_x': round(config['finish_line_x'], 2),
         'avg_final_x': round(avg_final_x, 2) if avg_final_x else None,
     }
@@ -235,16 +240,21 @@ def print_table(data: List[Dict[str, Any]]):
     
     # Print rows
     for row in data:
+        # Handle None values for failed batches
+        time_mean = f"{row['completion_time_mean']:.1f}" if row['completion_time_mean'] else "N/A"
+        time_std = f"{row['completion_time_std']:.1f}" if row['completion_time_std'] else "N/A"
+        final_x = f"{row['avg_final_x']:.2f}" if row['avg_final_x'] else "N/A"
+        
         line = (
             f"{row['num_drones']:<8} "
             f"{row['alignment']:<7} "
             f"{row['gradient_map']:<30} "
             f"{row['num_runs']:<6} "
             f"{row['success_rate_percent']:<10.1f} "
-            f"{row['completion_time_mean']:<10.1f} "
-            f"{row['completion_time_std']:<8.1f} "
+            f"{time_mean:<10} "
+            f"{time_std:<8} "
             f"{row['finish_line_x']:<10.2f} "
-            f"{row['avg_final_x'] or 'N/A':<10}"
+            f"{final_x:<10}"
         )
         print(line)
     

@@ -1,0 +1,2 @@
+batch_id,num_drones,alignment,gradient_map,num_runs,success_rate_percent,completion_time_mean,completion_time_std,completion_time_median,finish_line_x,avg_final_x
+batch_11.06.2025_17.37.37,7,OFF,sine_curve_thick001_freq2,50,0.0,,,,18.67,
