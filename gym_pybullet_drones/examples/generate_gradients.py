@@ -9,7 +9,20 @@ import os
 # WORLD_SIZE_Y = 4.0m -> 4.0 / 0.04 = 100 pixels
 WIDTH = 500  # Updated for 20m world (was 163 for 6.5m)
 HEIGHT = 100  # Unchanged (still 4.0m)
-OUTPUT_DIR = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient"
+
+# Auto-detect which computer we're on by checking which base path exists
+_MAC_BASE = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE/maps_gradient"
+_LINUX_BASE = "/home/ksb8405/Documents/PyBullet/gym-pybullet-drones-3DAE/maps_gradient"
+
+# Determine base path based on which directory exists
+if os.path.exists(os.path.dirname(_MAC_BASE)):
+    OUTPUT_DIR = _MAC_BASE
+elif os.path.exists(os.path.dirname(_LINUX_BASE)):
+    OUTPUT_DIR = _LINUX_BASE
+else:
+    # Fallback: use relative path from current working directory
+    OUTPUT_DIR = os.path.join(os.getcwd(), "maps_gradient")
+    print(f"⚠️  WARNING: Neither Mac nor Linux path found, using cwd: {OUTPUT_DIR}")
 
 # Ensure the output directory exists
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -282,21 +295,47 @@ def generate_custom_path_examples(width, height):
         result[valid] = height / 2 - np.sqrt(radius**2 - x_offset[valid]**2) * (height / (2 * radius))
         return result
     
-    # Example 5: Sine curve
-    def sine_curve_path(x):
-        """Simple sine wave"""
+    # Example 5: Sine curve (parameterized for frequency)
+    def sine_curve_path(x, freq):
+        """Simple sine wave with configurable frequency"""
         amplitude = height / 4
-        frequency = 4 * np.pi / width  # One complete cycle
+        frequency = freq * np.pi / width  # freq controls number of cycles
         return amplitude * np.sin(frequency * x) + height / 2
     
-    # Generate thickened versions with dark paths
+    # Generate thickened versions with dark paths (original examples)
     examples = {
         'parabola': thicken_path(parabola_path, width, height, thickness=0.03, invert=True),
         'exponential': thicken_path(exponential_path, width, height, thickness=0.001, invert=True),
         'zigzag': thicken_path(zigzag_path, width, height, thickness=0.05, invert=True),
         'circular_arc': thicken_path(circular_arc_path, width, height, thickness=0.06, invert=True),
-        'sine_curve_thick01_freq4': thicken_path(sine_curve_path, width, height, thickness=0.01, invert=True),
     }
+    
+    # ANTS 2026 Experiment: 3x3 Grid of Sine Curves
+    # Thickness levels: thick (0.01), medium (0.03), thin (0.05)
+    # Frequency levels: low (2 cycles), medium (4 cycles), high (6 cycles)
+    thickness_levels = {
+        'thick1': 1,   # Thinnest path 
+        'thick001': 0.01,   # Medium thickness
+        'thick000001': 0.000001,   # Thickest path 
+    }
+    
+    frequency_levels = {
+        'freq2': 2,  # Low frequency (2 complete cycles)
+        'freq4': 4,  # Medium frequency (4 complete cycles)
+        'freq8': 8,  # High frequency (8 complete cycles)
+    }
+    
+    # Generate all 9 combinations programmatically
+    print(f"\nGenerating 3x3 grid of sine curves:")
+    for thickness_name, thickness_val in thickness_levels.items():
+        for freq_name, freq_val in frequency_levels.items():
+            map_name = f'sine_curve_{thickness_name}_{freq_name}'
+            print(f"  Creating: {map_name} (thickness={thickness_val}, freq={freq_val})")
+            
+            # Create sine curve with specific frequency
+            sine_path_func = lambda x, f=freq_val: sine_curve_path(x, f)
+            examples[map_name] = thicken_path(sine_path_func, width, height, 
+                                             thickness=thickness_val, invert=True)
     
     # Create exponential with left-to-right gradient
     exponential_thickened = thicken_path(exponential_path, width, height, thickness=0.001, invert=True)
