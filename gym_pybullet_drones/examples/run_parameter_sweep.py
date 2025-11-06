@@ -61,7 +61,8 @@ PARAMETER_SPACE = {
 QUICK_PARAMETER_SPACE = {
     'num_drones': [10],                  
     'alignment': [True],                
-    'gradient_map': ['sine_curve_thick01_freq2']
+    'gradient_map': ['sine_curve_thick000001_freq2'],
+    'duration': [20]
     
     # Secondary parameters (uncomment to explore)
     # 'max_velocity': [0.10, 0.15, 0.20],      # Max linear velocity
@@ -233,13 +234,14 @@ def main():
     mode_str = "QUICK TEST" if args.quick else "FULL SWEEP"
     
     # Generate all configurations
-    configurations = generate_configurations(QUICK_PARAMETER_SPACE) if args.quick else generate_configurations(PARAMETER_SPACE)
+    param_space_used = QUICK_PARAMETER_SPACE if args.quick else PARAMETER_SPACE
+    configurations = generate_configurations(param_space_used)
     
     print("\n" + "="*70)
     print(f"🔬 PARAMETER SWEEP - {mode_str}")
     print("="*70)
     print(f"\nParameter Space:")
-    for param, values in PARAMETER_SPACE.items():
+    for param, values in param_space_used.items():
         print(f"  - {param}: {values}")
     print(f"\nTotal configurations: {len(configurations)}")
     print(f"Runs per configuration: {num_runs}")
@@ -247,9 +249,9 @@ def main():
     print(f"Base duration: {DURATION_SEC}s (scaled by swarm size)")
     
     # Show duration scaling
-    if 'num_drones' in PARAMETER_SPACE:
+    if 'num_drones' in param_space_used:
         print(f"\n⏱️  Duration Scaling:")
-        for nd in sorted(PARAMETER_SPACE['num_drones']):
+        for nd in sorted(param_space_used['num_drones']):
             scaled_duration = get_max_duration(nd, base_duration=DURATION_SEC)
             print(f"     {nd} drones → {scaled_duration}s")
     
@@ -280,7 +282,9 @@ def main():
         # Calculate appropriate duration based on swarm size
         num_drones = config.get('num_drones', 7)  # default to 7 if not specified
         duration = get_max_duration(num_drones, base_duration=DURATION_SEC)
-        
+        if args.quick and 'duration' in config:
+            duration = config['duration']
+
         result = run_batch(config, num_runs, duration)
         results.append(result)
         
@@ -325,7 +329,7 @@ def main():
     # Save sweep summary
     sweep_summary = {
         "mode": mode_str,
-        "parameter_space": PARAMETER_SPACE,
+        "parameter_space": param_space_used,
         "num_configurations": len(configurations),
         "runs_per_config": num_runs,
         "sweep_start_time": datetime.fromtimestamp(sweep_start_time).isoformat(),
