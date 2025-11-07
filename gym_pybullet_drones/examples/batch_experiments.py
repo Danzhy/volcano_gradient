@@ -460,6 +460,9 @@ def run_batch_experiments(
     print(f"\n📁 All experiment data in: {batch_folder}")
     print(f"{'='*70}\n")
     
+    # Print batch_id in parseable format for sweep script
+    print(f"BATCH_ID:{batch_id}")
+    
     return summary
 
 

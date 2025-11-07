@@ -1,0 +1,122 @@
+{
+  "experiment_id": "exp_0f77bc78_11.07.2025_02.21.07",
+  "config": {
+    "num_drones": 10,
+    "init_xyzs": [
+      [
+        1.0486832980505139,
+        2.748683298050514,
+        1.0
+      ],
+      [
+        1.0486832980505139,
+        2.1486832980505137,
+        1.0
+      ],
+      [
+        1.0486832980505139,
+        1.5486832980505136,
+        1.0
+      ],
+      [
+        1.0486832980505139,
+        0.9486832980505135,
+        1.0
+      ],
+      [
+        0.4486832980505139,
+        2.748683298050514,
+        1.0
+      ],
+      [
+        0.4486832980505139,
+        2.1486832980505137,
+        1.0
+      ],
+      [
+        0.4486832980505139,
+        1.5486832980505136,
+        1.0
+      ],
+      [
+        0.4486832980505139,
+        0.9486832980505135,
+        1.0
+      ],
+      [
+        -0.1513167019494861,
+        2.748683298050514,
+        1.0
+      ],
+      [
+        -0.1513167019494861,
+        2.1486832980505137,
+        1.0
+      ]
+    ],
+    "alignment_enabled": true,
+    "desired_spacing": 0.8,
+    "gradient_map_path": "/home/ksb8405/Documents/PyBullet/volcano_gradient/maps_gradient/path_example_20.0_sine_curve_thick000001_freq2.png",
+    "world_size_x": 20.0,
+    "world_size_y": 4.0,
+    "duration_sec": 20,
+    "snapshot_interval": 5,
+    "gui": false,
+    "performance_mode": "headless_accurate",
+    "finish_line_x": 17.53725830020305,
+    "finish_line_enabled": true,
+    "experiment_name": "",
+    "notes": "",
+    "random_seed": 43,
+    "base_seed": 42,
+    "run_number": 1,
+    "timestamp": "2025-11-07T02:21:07.575842"
+  },
+  "time_data": [
+    0.0,
+    15.0,
+    19.979166666666668
+  ],
+  "centroid_x_data": [
+    0.5686832980505138,
+    1.1575319574208227,
+    1.6221783491394572
+  ],
+  "centroid_y_data": [
+    1.9686832980505138,
+    1.2947761703878595,
+    1.2322923820719303
+  ],
+  "light_intensity_data": [
+    91.4,
+    68.6,
+    67.5
+  ],
+  "distance_from_start_data": [
+    0.0,
+    0.588848659370309,
+    1.0534950510889436
+  ],
+  "speed_data": [
+    0.075,
+    0.092843261311589,
+    0.10194273144967585
+  ],
+  "swarm_radius_data": [
+    0.7466625274183386,
+    1.1285667362187795,
+    1.1498076251656224
+  ],
+  "snapshot_times": [
+    0.0,
+    15.0,
+    19.979166666666668
+  ],
+  "success": false,
+  "time_to_finish": null,
+  "final_centroid_x": 1.6221783491394572,
+  "final_light_intensity": 67.5,
+  "actual_duration": 4.474043607711792,
+  "real_time_factor": 4.470229115676593,
+  "completed": true
+}

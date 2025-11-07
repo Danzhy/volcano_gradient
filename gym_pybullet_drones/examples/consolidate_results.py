@@ -309,19 +309,26 @@ Examples:
         sweep_file = os.path.join(results_batch_dir, sweep_files[-1])
         print(f"\n📄 Using latest sweep summary: {sweep_files[-1]}")
         
-        # Load sweep and get batch folders from results
+        # Load sweep and get batch_ids from results
         with open(sweep_file, 'r') as f:
             sweep_data = json.load(f)
         
-        # Extract batch folders from sweep results (we need to find them)
-        # For now, use all batch folders in chronological order matching the sweep
-        all_batches = sorted([d for d in os.listdir(results_batch_dir) 
-                            if os.path.isdir(os.path.join(results_batch_dir, d)) 
-                            and d.startswith('batch_')])
+        # Extract batch_ids from sweep results
+        batch_folders = []
+        for result in sweep_data['results']:
+            batch_id = result.get('batch_id')
+            if batch_id:
+                batch_folders.append(batch_id)
+            else:
+                # Error: batch_id is required
+                print(f"❌ Error: No batch_id found for {result.get('config_name', 'unknown')}")
+                print(f"   Sweep summary is missing batch_id fields.")
         
-        # Take the last N batches matching the number of results in sweep
-        num_configs = len(sweep_data['results'])
-        batch_folders = all_batches[-num_configs:]
+        if not batch_folders:
+            print(f"\n❌ No batch_ids found in sweep summary!")
+            print(f"   This sweep summary needs to be updated with batch_id fields.")
+            print(f"   Each result entry should have a 'batch_id' field.")
+            sys.exit(1)
         
         print(f"📊 Found {len(batch_folders)} batches matching sweep")
         consolidated_data = consolidate_from_batch_folders(results_batch_dir, batch_folders)
@@ -337,20 +344,28 @@ Examples:
         
         print(f"\n📄 Reading sweep summary: {args.sweep_file}")
         
-        # Load sweep and get batch folders from results
+        # Load sweep and get batch_ids from results
         with open(args.sweep_file, 'r') as f:
             sweep_data = json.load(f)
         
         results_batch_dir = os.path.dirname(args.sweep_file) or 'results_batch'
         
-        # Extract batch folders - match by timestamp proximity
-        all_batches = sorted([d for d in os.listdir(results_batch_dir) 
-                            if os.path.isdir(os.path.join(results_batch_dir, d)) 
-                            and d.startswith('batch_')])
+        # Extract batch_ids from sweep results
+        batch_folders = []
+        for result in sweep_data['results']:
+            batch_id = result.get('batch_id')
+            if batch_id:
+                batch_folders.append(batch_id)
+            else:
+                # Error: batch_id is required
+                print(f"❌ Error: No batch_id found for {result.get('config_name', 'unknown')}")
+                print(f"   Sweep summary is missing batch_id fields.")
         
-        # Take the last N batches matching the number of results in sweep
-        num_configs = len(sweep_data['results'])
-        batch_folders = all_batches[-num_configs:]
+        if not batch_folders:
+            print(f"\n❌ No batch_ids found in sweep summary!")
+            print(f"   This sweep summary needs to be updated with batch_id fields.")
+            print(f"   Each result entry should have a 'batch_id' field.")
+            sys.exit(1)
         
         print(f"📊 Found {len(batch_folders)} batches matching sweep")
         consolidated_data = consolidate_from_batch_folders(results_batch_dir, batch_folders)

@@ -47,16 +47,28 @@ PARAMETER_SPACE = {
     # 'alignment_weight': [0.5, 1.0, 1.5],     # Beta parameter
     # 'gradient_map': ['sine', 'funnel'],      # Path type
 }
-PARAMETER_SPACE = {
-    'num_drones': [7, 10, 19, 37],                  
+# FOR exploration: effect of frequency alone
+FREQ_PARAMETER_SPACE = {
+    'num_drones': [7],  
     'alignment': [True],                
-    'gradient_map': ['sine_curve_thick01_freq2']
-    
-    # Secondary parameters (uncomment to explore)
-    # 'max_velocity': [0.10, 0.15, 0.20],      # Max linear velocity
-    # 'alignment_weight': [0.5, 1.0, 1.5],     # Beta parameter
-    # 'gradient_map': ['sine', 'funnel'],      # Path type
+    'gradient_map': [
+        'sine_curve_thick001_freq2',     # low freq
+        'sine_curve_thick001_freq4',     # medium freq
+        'sine_curve_thick001_freq8'      # high freq
+    ]
 }
+
+# FOR exploration: effect of frequency alone
+PARAMETER_SPACE = {
+    'num_drones': [7],  
+    'alignment': [True],                
+    'gradient_map': [
+        'sine_curve_thick1_freq2',     # low freq
+        'sine_curve_thick001_freq2',     # medium freq
+        'sine_curve_thick000001_freq2'      # high freq
+    ]
+}
+
 
 QUICK_PARAMETER_SPACE = {
     'num_drones': [10],                  
@@ -150,20 +162,35 @@ def run_batch(config: Dict[str, Any], num_runs: int, duration: int) -> Dict[str,
         result = subprocess.run(
             cmd,
             check=True,
-            capture_output=False,  # Show output in real-time
+            capture_output=True,  # Capture output to parse batch_id
             text=True
         )
         elapsed_time = time.time() - start_time
+        
+        # Print the captured output
+        print(result.stdout, end='')
+        if result.stderr:
+            print(result.stderr, end='')
+        
+        # Parse batch_id from output
+        batch_id = None
+        for line in result.stdout.split('\n'):
+            if line.startswith('BATCH_ID:'):
+                batch_id = line.split('BATCH_ID:')[1].strip()
+                break
         
         print(f"\n{'='*70}")
         print(f"✅ BATCH COMPLETE: {config_name}")
         print(f"⏱️  Total time: {elapsed_time/60:.1f} minutes ({elapsed_time:.0f}s)")
         print(f"   Finished: {datetime.now().strftime('%I:%M:%S %p')}")
+        if batch_id:
+            print(f"   Batch ID: {batch_id}")
         print(f"{'='*70}\n")
         
         return {
             "config_name": config_name,
             "config": config,
+            "batch_id": batch_id,
             "success": True,
             "elapsed_time": elapsed_time,
             "num_runs": num_runs,
