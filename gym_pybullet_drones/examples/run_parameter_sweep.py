@@ -58,14 +58,14 @@ FREQ_PARAMETER_SPACE = {
     ]
 }
 
-# FOR exploration: effect of frequency alone
+# FOR exploration: effect of thickness alone (path width)
 PARAMETER_SPACE = {
     'num_drones': [7],  
     'alignment': [True],                
     'gradient_map': [
-        'sine_curve_thick1_freq2',     # low freq
-        'sine_curve_thick001_freq2',     # medium freq
-        'sine_curve_thick000001_freq2'      # high freq
+        'sine_curve_thick0.9_freq2',     # Narrowest: ~3.1cm effective width
+        'sine_curve_thick001_freq2',     # Medium: ~2.8m effective width
+        'sine_curve_thick000001_freq2'   # Widest: unlimited gradient spread
     ]
 }
 
