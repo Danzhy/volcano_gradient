@@ -1,0 +1,6 @@
+exp_54478e97_02.05.2026_00.23.21 ---- 3 agents, initialized at the beginning, initial heading leftward; result: oscillated near beginning
+exp_54478e97_02.05.2026_00.28.05 ---- same as above, but initialized heading rightward; result: reached finish line
+exp_54478e97_02.05.2026_00.28.05 ---- 4 agents, initialized at the beginning, heading leftward; result: very reluctant motion towards finish, but reached finish
+exp_83e6da97_02.05.2026_00.32.45 ---- same as above, but 5 agent. Initially moved towards finish, then moved back, but finished still
+
+There needs to be enough agents to get repelled by the white border?

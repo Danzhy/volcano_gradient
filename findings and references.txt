@@ -1,0 +1,32 @@
+Why flock moves to the right?
+1. Agents are initialized heading to the right.
+2. The territory outside of the map is white, which repels agents
+3. There are enough agents so the white zone outside of the map borders repels those agents strong enough
+
+A special case: When heading is initialized to the left or randomly, and the number of agents is small, then agents might drift
+out of the map's bounds. Thus, points 1,2,3 are important.
+
+
+
+Initial heading of the agents is set in the initialization of attributes of FlockingUtils2DWithLightSensor class
+
+
+
+These are important hyperparameters: 
+
+
+NUM_DRONES = 7
+FIXED_HEIGHT = 1.0  # All drones stay at this Z height
+
+# p.setRealTimeSumiulation(0)
+
+# Starting position for swarm
+init_center_x = 0.1
+init_center_y = 1.8
+
+    #this was an attempt to initialize centroid at the center, to check how initial heading direction would affect this
+#init_center_x = WORLD_SIZE_X / 2   # 10.0 (horizontal center)
+#init_center_y = WORLD_SIZE_Y / 2   # 2.0 (vertical center)
+init_center_z = FIXED_HEIGHT  # Use our fixed height
+spacing = 0.8
+

@@ -30,6 +30,9 @@ import matplotlib.pyplot as plt
 from swarm_visualization import create_drone_position_overlay, create_analysis_dashboard, print_simulation_summary
 from experiment_data import ExperimentConfig, ExperimentData, check_success
 
+# Import anisotropic vision utilities
+from anisotropic_utils import compute_angle_weight
+
 # Gradient map settings (matching dm_ds_v2.py approach)
 # Auto-detect which computer we're on by checking which base path exists
 _MAC_BASE = "/Users/kiandrew/Desktop/Capstone/PyBullet/gym-pybullet-drones-3DAE"
@@ -291,6 +294,15 @@ init_center_y = 1.8
 init_center_z = FIXED_HEIGHT  # Use our fixed height
 spacing = 0.8
 
+# ========== Playground: force analysis, slow-mo, live map ==========
+# Beams: RED = total flocking force (proximal + alignment, world frame). GREEN = velocity (where drone is moving).
+SHOW_FORCE_ANALYSIS = True   # Print per-agent forces and toward/away from finish every second
+SHOW_FORCE_VECTORS = True    # Draw force (red) and velocity (green) arrows in PyBullet window
+SHOW_LIVE_MAP = True         # Open bird's-eye matplotlib window with map + drones + force vectors
+SLOW_MO_FACTOR = .25         # 1.0 = run as fast as possible (no sync); <1 = slow-mo (e.g. 0.25 = 4x slow)
+LIVE_MAP_UPDATE_EVERY_N_STEPS = 5  # Update live map every N steps (lower = smoother but slower; 1 = every step)
+FORCE_VECTOR_SCALE = 1.5     # Scale for drawing force arrows in world units (tune for visibility)
+
 # No goal settings needed - using gradient following instead
 
 class FlockingUtils2DWithLightSensor:
@@ -300,13 +312,22 @@ class FlockingUtils2DWithLightSensor:
     removing the dependency on the incorrect ants_2024.flocking_utils.
     """
     
-    def __init__(self, n_agents, center_x, center_y, center_z, spacing, alignment_enabled=True):
+    def __init__(self, n_agents, center_x, center_y, center_z, spacing, alignment_enabled=True,
+                 anisotropic_enabled=False, angle_weighting_method="gaussian_normal",
+                 angle_weighting_sigma=np.pi/4, angle_weighting_mu=0.0, angle_weighting_min_weight=0.0):
         self.n_agents = n_agents
         self.center_x = center_x
         self.center_y = center_y
         self.fixed_z = center_z
         self.spacing = spacing
         self.alignment_enabled = alignment_enabled
+        
+        # Anisotropic vision parameters
+        self.anisotropic_enabled = anisotropic_enabled
+        self.angle_weighting_method = angle_weighting_method
+        self.angle_weighting_sigma = angle_weighting_sigma
+        self.angle_weighting_mu = angle_weighting_mu
+        self.angle_weighting_min_weight = angle_weighting_min_weight
 
         # --- Parameters from swarm_vu.c and dm_ds_v2.py ---
         self.alpha = 2.0     # Weight for proximal force
@@ -325,9 +346,9 @@ class FlockingUtils2DWithLightSensor:
         # Drone state variables
         # self.headings = np.random.rand(n_agents) * 2 * np.pi # Initialize with random headings
         # Initialize with aligned headings
-        self.headings = np.random.uniform(-np.pi/12, np.pi/12, n_agents)
+        #self.headings = np.random.uniform(-np.pi/12, np.pi/12, n_agents)
         #self.headings = np.random.uniform(-np.pi, np.pi, n_agents) # fully random
-        #self.headings = np.random.uniform(np.pi - np.pi/12,   np.pi + np.pi/12,  n_agents)
+        self.headings = np.random.uniform(np.pi - np.pi/12,   np.pi + np.pi/12,  n_agents)
 
 
 
@@ -336,6 +357,10 @@ class FlockingUtils2DWithLightSensor:
         print(f"   - Re-implementing logic from swarm_vu.c and dm_ds_v2.py")
         print(f"   - Constraining all drones to Z = {self.fixed_z}")
         print(f"   - Alignment: {'ENABLED (β=1.0)' if alignment_enabled else 'DISABLED (β=0.0)'}")
+        if anisotropic_enabled:
+            print(f"   - Anisotropic vision: ENABLED ({angle_weighting_method}, σ={angle_weighting_sigma:.3f} rad ≈ {np.degrees(angle_weighting_sigma):.1f}°)")
+        else:
+            print(f"   - Anisotropic vision: DISABLED (isotropic perception)")
 
     def initialize_positions(self):
         """Initialize positions but ensure Z is fixed"""
@@ -419,20 +444,35 @@ class FlockingUtils2DWithLightSensor:
                 
                 # Consider only neighbors within the sensing range Dp
                 if distance < self.Dp:
-                    # ---- Proximal Force Calculation ----
+                    # Angle from agent i toward neighbor j (global frame)
                     ij_ang = np.arctan2(dist_y, dist_x)
                     
+                    # --- Anisotropic vision: weight by relative angle ---
+                    if self.anisotropic_enabled:
+                        relative_angle = ij_ang - self.headings[i]
+                        relative_angle = (relative_angle + np.pi) % (2 * np.pi) - np.pi  # Wrap to [-π, π]
+                        angle_weight = compute_angle_weight(
+                            relative_angle,
+                            method=self.angle_weighting_method,
+                            mu=self.angle_weighting_mu,
+                            sigma=self.angle_weighting_sigma,
+                            min_weight=self.angle_weighting_min_weight
+                        )
+                    else:
+                        angle_weight = 1.0
+                    
+                    # ---- Proximal Force Calculation (weighted) ----
                     # Equation (1) from swarm_vu.c: Lennard-Jones potential
                     force_magnitude = -self.epsilon * (
                         (2 * (su**4 / distance**5)) - (su**2 / distance**3)
                     )
                     
-                    # Accumulate proximal force components
-                    px += force_magnitude * np.cos(ij_ang)
-                    py += force_magnitude * np.sin(ij_ang)
+                    # Accumulate proximal force components (weighted by angle)
+                    px += angle_weight * force_magnitude * np.cos(ij_ang)
+                    py += angle_weight * force_magnitude * np.sin(ij_ang)
                     
-                    # ---- Alignment Force Calculation ----
-                    # Accumulate neighbor headings for alignment
+                    # ---- Alignment Force Calculation (weighted) ----
+                    # Accumulate neighbor headings for alignment (weighted by angle)
                     sum_cosh += np.cos(self.headings[j])
                     sum_sinh += np.sin(self.headings[j])
             
@@ -480,6 +520,88 @@ class FlockingUtils2DWithLightSensor:
         
         return velocities_2d
 
+    def compute_2d_flocking_forces_with_light_sensor_verbose(self, pos_xs, pos_ys, pos_zs):
+        """
+        Same as compute_2d_flocking_forces_with_light_sensor but also returns per-agent
+        force breakdown for analysis: proximal (px, py), alignment (hx, hy), total world
+        force (fx_raw, fy_raw), velocity (vx, vy), light, su.
+        Caller can add toward_finish = (fx_raw > 0) using FINISH_LINE_X.
+        """
+        velocities_2d = np.zeros((self.n_agents, 3))
+        force_debug_list = []
+        
+        for i in range(self.n_agents):
+            px, py = 0.0, 0.0
+            light_intensity = read_light_intensity(pos_xs[i], pos_ys[i], add_noise=True)
+            light_capped = np.clip(light_intensity, 0.0, 255.0)
+            light_normalized = (255.0 - light_capped) / 255.0
+            su = self.sb + np.power(light_normalized, 0.1) * self.sv
+
+            sum_cosh = np.cos(self.headings[i])
+            sum_sinh = np.sin(self.headings[i])
+            for j in range(self.n_agents):
+                if i == j:
+                    continue
+                dist_x = pos_xs[j] - pos_xs[i]
+                dist_y = pos_ys[j] - pos_ys[i]
+                distance = np.sqrt(dist_x**2 + dist_y**2)
+                if distance < self.Dp:
+                    ij_ang = np.arctan2(dist_y, dist_x)
+                    
+                    # --- Anisotropic vision: weight by relative angle ---
+                    if self.anisotropic_enabled:
+                        relative_angle = ij_ang - self.headings[i]
+                        relative_angle = (relative_angle + np.pi) % (2 * np.pi) - np.pi  # Wrap to [-π, π]
+                        angle_weight = compute_angle_weight(
+                            relative_angle,
+                            method=self.angle_weighting_method,
+                            mu=self.angle_weighting_mu,
+                            sigma=self.angle_weighting_sigma,
+                            min_weight=self.angle_weighting_min_weight
+                        )
+                    else:
+                        angle_weight = 1.0
+                    
+                    force_magnitude = -self.epsilon * (
+                        (2 * (su**4 / distance**5)) - (su**2 / distance**3)
+                    )
+                    px += angle_weight * force_magnitude * np.cos(ij_ang)
+                    py += angle_weight * force_magnitude * np.sin(ij_ang)
+                    sum_cosh +=  np.cos(self.headings[j])
+                    sum_sinh +=  np.sin(self.headings[j])
+
+            heading_magnitude = np.sqrt(sum_cosh**2 + sum_sinh**2)
+            if heading_magnitude > 0:
+                hx = sum_cosh / heading_magnitude
+                hy = sum_sinh / heading_magnitude
+            else:
+                hx, hy = 0.0, 0.0
+
+            fx_raw = self.alpha * px + self.beta * hx
+            fy_raw = self.alpha * py + self.beta * hy
+            fx = fx_raw * np.cos(-self.headings[i]) - fy_raw * np.sin(-self.headings[i])
+            fy = fx_raw * np.sin(-self.headings[i]) + fy_raw * np.cos(-self.headings[i])
+            u = self.K1 * fx + self.u_add
+            w = self.K2 * fy
+            u = np.clip(u, 0, self.umax)
+            w = np.clip(w, -self.wmax, self.wmax)
+            self.headings[i] += w * 0.042
+            base_vx = u * np.cos(self.headings[i])
+            base_vy = u * np.sin(self.headings[i])
+            velocities_2d[i, 0], velocities_2d[i, 1] = base_vx, base_vy
+
+            # Note: angle_weight is per-neighbor, so we store average for this agent
+            # (in verbose mode we'd need to track per-neighbor, but for now average is informative)
+            force_debug_list.append({
+                "px": px, "py": py, "hx": hx, "hy": hy,
+                "fx_raw": fx_raw, "fy_raw": fy_raw,
+                "vx": base_vx, "vy": base_vy,
+                "light_intensity": float(light_capped), "su": su,
+                "heading": self.headings[i],
+                "anisotropic_enabled": self.anisotropic_enabled,
+            })
+        return velocities_2d, force_debug_list
+
     def update_heading(self):
         """
         Heading is now updated internally during the force calculation.
@@ -496,7 +618,9 @@ class FlockingUtils2DWithLightSensor:
 
 def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42, 
         num_drones=NUM_DRONES, map_length=WORLD_SIZE_X, alignment_enabled=True, 
-        gradient_map_name=None):
+        gradient_map_name=None,
+        anisotropic_enabled=False, angle_weighting_method="gaussian_normal",
+        angle_weighting_sigma=np.pi/4, angle_weighting_mu=0.0, angle_weighting_min_weight=0.0):
     """
     Run 2D flocking simulation with gradient following.
     
@@ -583,17 +707,20 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
     print(f"   → Finish line dynamically set for {num_drones} drones")
     print()
     
-    # Set performance mode (change this to "fast" for maximum speed!)
-    # set_performance_mode("fast")  # Options: "fast", "balanced", "accurate"
-    set_performance_mode("headless_accurate")
-    # set_performance_mode("accurate")
+    # Playground: always use accurate mode with GUI so we can see map + force vectors + slow-mo
+    set_performance_mode("accurate")
 
     # Create 2D wrapper with gradient following capability
     f_util = FlockingUtils2DWithLightSensor(
         n_agents=num_drones,
         center_x=init_center_x, center_y=init_center_y, center_z=init_center_z, 
         spacing=spacing,
-        alignment_enabled=alignment_enabled
+        alignment_enabled=alignment_enabled,
+        anisotropic_enabled=anisotropic_enabled,
+        angle_weighting_method=angle_weighting_method,
+        angle_weighting_sigma=angle_weighting_sigma,
+        angle_weighting_mu=angle_weighting_mu,
+        angle_weighting_min_weight=angle_weighting_min_weight
     )
     pos_xs, pos_ys, pos_zs, pos_h_xc, pos_h_yc, pos_h_zc = f_util.initialize_positions()
 
@@ -627,7 +754,7 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
         p.configureDebugVisualizer(p.COV_ENABLE_TINY_RENDERER, 0)
         p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 1)
         
-        # Set top-down camera view for 2D visualization
+        # Set top-down camera view for 2D visualization (bird's-eye)
         p.resetDebugVisualizerCamera(
             cameraDistance=8,
             cameraYaw=0,
@@ -636,6 +763,23 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
         )
     else:
         print("🚀 Running in HEADLESS mode for maximum speed!")
+
+    # Playground: live bird's-eye map window (gradient map + drones + force vectors)
+    live_map_fig = None
+    live_map_ax = None
+    if SHOW_LIVE_MAP and not ENABLE_HEADLESS_MODE:
+        plt.ion()
+        live_map_fig, live_map_ax = plt.subplots(1, 1, figsize=(10, 4))
+        live_map_ax.imshow(gradient_map, cmap="gray", extent=(0, WORLD_SIZE_X, 0, WORLD_SIZE_Y),
+                           origin="upper", aspect="auto")
+        live_map_ax.set_xlim(0, WORLD_SIZE_X)
+        live_map_ax.set_ylim(0, WORLD_SIZE_Y)
+        live_map_ax.set_xlabel("X (m)")
+        live_map_ax.set_ylabel("Y (m)")
+        live_map_ax.set_title("Bird's-eye: Red=total force, Green=velocity")
+        live_map_ax.invert_yaxis()
+        plt.tight_layout()
+        plt.show(block=False)
 
     # Create controllers (same as always!)
     ctrl = [DSLPIDControl(drone_model=DEFAULT_DRONES) for i in range(num_drones)]
@@ -648,6 +792,9 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
 
     print("\n💡 Controls:")
     print("- Q: Quit simulation")
+    if not ENABLE_HEADLESS_MODE:
+        speed_msg = "as fast as possible (no sync)" if SLOW_MO_FACTOR >= 1.0 else f"slow-mo {1/SLOW_MO_FACTOR:.1f}x"
+        print(f"- Playground: speed={speed_msg} | Red=force, Green=velocity (in PyBullet + live map)")
     print("🔍 Watch how drones balance flocking behavior with gradient following!")
     print("📈 Drones will naturally aggregate in areas with higher light intensity")
     if ENABLE_HEADLESS_MODE:
@@ -733,7 +880,9 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
     last_snapshot_time = -SNAPSHOT_INTERVAL  # Force first snapshot at t=0
 
     # Main simulation loop - gradient following
+    last_force_print_time = -1.0
     for i in range(0, int(duration_sec * env.CTRL_FREQ)):
+        step_start_wall = time.time()  # for forced slow-mo timing
         # Clear any visual artifacts (same as before)
         p.removeAllUserDebugItems()
         
@@ -757,14 +906,76 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
             pos_y[j] = states[1]
             pos_z[j] = FIXED_HEIGHT  # Force Z to be constant!
 
-        # NEW: Compute 2D flocking forces WITH LIGHT SENSOR SIMULATION
-        velocities_2d = f_util.compute_2d_flocking_forces_with_light_sensor(pos_x, pos_y, pos_z)
+        current_time = i / env.CTRL_FREQ
+
+        # Compute 2D flocking: use verbose when we need force analysis / vectors / live map
+        use_verbose = SHOW_FORCE_ANALYSIS or SHOW_FORCE_VECTORS or (SHOW_LIVE_MAP and live_map_ax is not None)
+        if use_verbose:
+            velocities_2d, force_debug_list = f_util.compute_2d_flocking_forces_with_light_sensor_verbose(pos_x, pos_y, pos_z)
+            for d in force_debug_list:
+                d["toward_finish"] = d["fx_raw"] > 0  # +X is toward finish line
+        else:
+            velocities_2d = f_util.compute_2d_flocking_forces_with_light_sensor(pos_x, pos_y, pos_z)
+            force_debug_list = None
         pos_hxs, pos_hys, pos_hzs = f_util.get_heading()
         f_util.update_heading()
+
+        # Playground: draw force and velocity vectors in PyBullet (Red = force, Green = velocity)
+        if force_debug_list is not None and SHOW_FORCE_VECTORS and not ENABLE_HEADLESS_MODE:
+            for j in range(num_drones):
+                d = force_debug_list[j]
+                px_w, py_w = pos_x[j], pos_y[j]
+                z = FIXED_HEIGHT
+                # Red = total flocking force (world frame)
+                fx, fy = d["fx_raw"], d["fy_raw"]
+                p.addUserDebugLine(
+                    [px_w, py_w, z],
+                    [px_w + FORCE_VECTOR_SCALE * fx, py_w + FORCE_VECTOR_SCALE * fy, z],
+                    [1, 0, 0], lineWidth=2, lifeTime=2 * env.CTRL_TIMESTEP, physicsClientId=env.CLIENT
+                )
+                # Green = velocity (where the drone is moving)
+                vx, vy = d["vx"], d["vy"]
+                p.addUserDebugLine(
+                    [px_w, py_w, z],
+                    [px_w + FORCE_VECTOR_SCALE * vx, py_w + FORCE_VECTOR_SCALE * vy, z],
+                    [0, 0.8, 0], lineWidth=1, lifeTime=2 * env.CTRL_TIMESTEP, physicsClientId=env.CLIENT
+                )
+
+        # Playground: print force analysis every second
+        current_time = i / env.CTRL_FREQ
+        if SHOW_FORCE_ANALYSIS and force_debug_list is not None and (current_time - last_force_print_time) >= 1.0:
+            last_force_print_time = current_time
+            print(f"\n--- Forces @ t={current_time:.1f}s (finish @ X={FINISH_LINE_X:.2f}) ---")
+            for j in range(num_drones):
+                d = force_debug_list[j]
+                toward = "toward finish" if d["toward_finish"] else "AWAY from finish"
+                print(f"  Agent {j}: fx_raw={d['fx_raw']:+.3f} fy_raw={d['fy_raw']:+.3f} | {toward} | light={d['light_intensity']:.1f} su={d['su']:.3f}")
+
+        # Playground: update live bird's-eye map (throttled to avoid making sim slow)
+        if SHOW_LIVE_MAP and live_map_ax is not None and (i % LIVE_MAP_UPDATE_EVERY_N_STEPS == 0):
+            live_map_ax.clear()
+            live_map_ax.imshow(gradient_map, cmap="gray", extent=(0, WORLD_SIZE_X, 0, WORLD_SIZE_Y),
+                               origin="upper", aspect="auto")
+            live_map_ax.scatter(pos_x, pos_y, c="cyan", s=80, edgecolors="blue", linewidths=2, zorder=5)
+            if force_debug_list is not None:
+                fxs = [d["fx_raw"] for d in force_debug_list]
+                fys = [d["fy_raw"] for d in force_debug_list]
+                scale = 0.8
+                live_map_ax.quiver(pos_x, pos_y, fxs, fys, color="red", scale=1.0 / scale, scale_units="xy", width=0.003)
+                vxs = [d["vx"] for d in force_debug_list]
+                vys = [d["vy"] for d in force_debug_list]
+                live_map_ax.quiver(pos_x, pos_y, vxs, vys, color="lime", scale=1.0 / scale, scale_units="xy", width=0.002)
+            live_map_ax.set_xlim(0, WORLD_SIZE_X)
+            live_map_ax.set_ylim(0, WORLD_SIZE_Y)
+            live_map_ax.set_xlabel("X (m)")
+            live_map_ax.set_ylabel("Y (m)")
+            live_map_ax.set_title(f"Bird's-eye t={current_time:.1f}s | Red=force, Green=velocity")
+            live_map_ax.invert_yaxis()
+            live_map_fig.canvas.draw()
+            live_map_fig.canvas.flush_events()
+            plt.pause(0.001)
         
         # Collect comprehensive metrics every simulation step
-        current_time = i / env.CTRL_FREQ
-        
         # 1. Light intensity
         light_readings = [read_light_intensity(pos_x[j], pos_y[j], add_noise=False) for j in range(num_drones)]
         avg_light_intensity = np.mean(light_readings)
@@ -864,10 +1075,16 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
                 target_rpy=np.array([0, 0, 0])
             )
 
-        # Render (NO SYNC - maximum speed!)
+        # Render; playground: only add delay when slow-mo is requested (SLOW_MO_FACTOR < 1)
         env.render()
-        if DEFAULT_GUI and not ENABLE_HEADLESS_MODE:
-            sync(i, START, env.CTRL_TIMESTEP)
+        if DEFAULT_GUI and not ENABLE_HEADLESS_MODE and SLOW_MO_FACTOR < 1.0:
+            # Force this step to take at least step_duration in real time
+            step_duration = env.CTRL_TIMESTEP / SLOW_MO_FACTOR
+            elapsed = time.time() - step_start_wall
+            to_sleep = step_duration - elapsed
+            if to_sleep > 0:
+                time.sleep(to_sleep)
+        # When SLOW_MO_FACTOR >= 1 we do not call sync() — run as fast as possible
 
     # Cleanup
     env.close()
@@ -979,6 +1196,17 @@ if __name__ == "__main__":
                        help='Enable/disable alignment (default: enabled)')
     parser.add_argument('--gradient-map', type=str, default=None,
                        help='Gradient map filename without path or extension (e.g., sine_curve_thick1_freq2)')
+    parser.add_argument('--anisotropic', type=str2bool, default=False,
+                       help='Enable anisotropic vision (default: False)')
+    parser.add_argument('--angle-method', type=str, default='gaussian_normal',
+                       choices=['gaussian_normal', 'cosine', 'step', 'uniform'],
+                       help='Angle weighting method (default: gaussian_normal)')
+    parser.add_argument('--angle-sigma', type=float, default=None,
+                       help='FOV width in radians for gaussian method (default: π/4 ≈ 45°)')
+    parser.add_argument('--angle-mu', type=float, default=0.0,
+                       help='Center direction in radians (default: 0.0 = forward)')
+    parser.add_argument('--angle-min-weight', type=float, default=0.0,
+                       help='Minimum weight for neighbors behind (default: 0.0 = blind behind)')
     
     args = parser.parse_args()
     
@@ -990,6 +1218,9 @@ if __name__ == "__main__":
     if args.alignment:
         alignment_enabled = (args.alignment.lower() == 'true')
     
+    # Parse anisotropic vision arguments
+    angle_sigma = args.angle_sigma if args.angle_sigma is not None else np.pi / 4
+    
     run(duration_sec=duration, 
         seed=args.seed,
         run_number=args.run_number,
@@ -997,4 +1228,9 @@ if __name__ == "__main__":
         num_drones=args.num_drones,
         map_length=args.map_length,
         alignment_enabled=alignment_enabled,
-        gradient_map_name=args.gradient_map)
+        gradient_map_name=args.gradient_map,
+        anisotropic_enabled=args.anisotropic,
+        angle_weighting_method=args.angle_method,
+        angle_weighting_sigma=angle_sigma,
+        angle_weighting_mu=args.angle_mu,
+        angle_weighting_min_weight=args.angle_min_weight)
