@@ -1,0 +1,22 @@
+# Core dependencies for 2D flocking parameter sweep and gradient following
+# Install with: pip install -r requirements.txt
+#
+# IMPORTANT: gym_pybullet_drones is a LOCAL package (in this repo).
+# After installing requirements, install it in editable mode from project root:
+#   pip install -e .
+# This makes the gym_pybullet_drones module importable.
+
+numpy>=1.24
+scipy>=1.10
+pybullet>=3.2.5
+gymnasium>=0.28
+matplotlib>=3.7
+Pillow>=9.0
+
+# Optional: for RL training (learn.py)
+# stable-baselines3>=2.0.0
+# torch
+
+# Optional: for some advanced examples (transforms3d, noise)
+# transforms3d>=0.4.1
+# noise

@@ -81,6 +81,7 @@ def extract_batch_metrics(batch_summary: Dict[str, Any]) -> Dict[str, Any]:
     return {
         'num_drones': config['num_drones'],
         'alignment': 'ON' if config['alignment_enabled'] else 'OFF',
+        'vision_mode': config.get('vision_mode', 'normal'),  # From batch metadata
         'gradient_map': simplify_gradient_map_name(config['gradient_map']),
         'num_runs': batch_summary['num_runs'],
         'success_rate_percent': batch_summary['success_rate_percent'],
@@ -198,6 +199,7 @@ def write_csv(data: List[Dict[str, Any]], output_path: str):
         'batch_id',
         'num_drones',
         'alignment',
+        'vision_mode',
         'gradient_map',
         'num_runs',
         'success_rate_percent',
@@ -229,14 +231,14 @@ def print_table(data: List[Dict[str, Any]]):
         print("❌ No data to display!")
         return
     
-    print("\n" + "="*120)
+    print("\n" + "="*135)
     print("📊 CONSOLIDATED BATCH RESULTS")
-    print("="*120)
+    print("="*135)
     
     # Print header
-    header = f"{'Drones':<8} {'Align':<7} {'Gradient Map':<30} {'Runs':<6} {'Success%':<10} {'Time(s)':<10} {'±Std':<8} {'Finish X':<10} {'Final X':<10}"
+    header = f"{'Drones':<8} {'Align':<7} {'Vision':<14} {'Gradient Map':<30} {'Runs':<6} {'Success%':<10} {'Time(s)':<10} {'±Std':<8} {'Finish X':<10} {'Final X':<10}"
     print(header)
-    print("-"*120)
+    print("-"*135)
     
     # Print rows
     for row in data:
@@ -248,6 +250,7 @@ def print_table(data: List[Dict[str, Any]]):
         line = (
             f"{row['num_drones']:<8} "
             f"{row['alignment']:<7} "
+            f"{row['vision_mode']:<14} "
             f"{row['gradient_map']:<30} "
             f"{row['num_runs']:<6} "
             f"{row['success_rate_percent']:<10.1f} "
@@ -258,7 +261,7 @@ def print_table(data: List[Dict[str, Any]]):
         )
         print(line)
     
-    print("="*120 + "\n")
+    print("="*135 + "\n")
 
 
 def main():

@@ -34,7 +34,7 @@ from gym_pybullet_drones.utils.utils import get_max_duration
 
 def run_single_experiment(run_number: int, batch_folder: str, duration_sec: int, 
                          num_drones: Optional[int] = None, alignment: Optional[bool] = None,
-                         gradient_map: Optional[str] = None) -> Dict[str, Any]:
+                         gradient_map: Optional[str] = None, vision_mode: Optional[str] = None) -> Dict[str, Any]:
     """
     Run a single experiment and return results.
     
@@ -54,9 +54,9 @@ def run_single_experiment(run_number: int, batch_folder: str, duration_sec: int,
     import importlib.util
     import subprocess
     
-    # Get path to the simulation script
+    # Simulation script: 2d_flocking_playground (has vision_mode, anisotropic, pursuit_evasion)
     script_dir = Path(__file__).parent
-    sim_script = script_dir / "2d_flocking_with_real_utils.py"
+    sim_script = script_dir / "2d_flocking_playground.py"
     
     # Run as subprocess (cleaner than importlib for module with numbers in name)
     start_time = time.time()
@@ -83,9 +83,13 @@ def run_single_experiment(run_number: int, batch_folder: str, duration_sec: int,
         if gradient_map is not None:
             cmd.extend(['--gradient-map', gradient_map])
         
+        # Add optional vision_mode: normal | anisotropic | pursuit_evasion
+        if vision_mode is not None:
+            cmd.extend(['--vision-mode', vision_mode])
+        
         result = subprocess.run(
             cmd,
-            cwd=str(script_dir.parent.parent),  # Run from project root
+            cwd=str(script_dir.parent.parent),  # Project root: maps_gradient/, BASE_PATH resolve correctly
             capture_output=True,
             text=True,
             timeout=duration_sec + 60,  # Add buffer for setup/teardown
@@ -276,6 +280,8 @@ def create_batch_summary_visualization(results: List[Dict[str, Any]], output_pat
             config_text_parts.append(f"  Finish: {configuration['finish_line_x']:.2f}m")
         if configuration.get('gradient_map'):
             config_text_parts.append(f"  Map: {configuration['gradient_map']}")
+        if configuration.get('vision_mode'):
+            config_text_parts.append(f"  Vision: {configuration['vision_mode']}")
         if configuration.get('base_seed'):
             config_text_parts.append(f"  Seed: {configuration['base_seed']}")
         
@@ -298,7 +304,8 @@ def run_batch_experiments(
     base_output_folder: str = "results_batch",
     num_drones: Optional[int] = None,
     alignment: Optional[bool] = None,
-    gradient_map: Optional[str] = None
+    gradient_map: Optional[str] = None,
+    vision_mode: Optional[str] = None
 ):
     """
     Run multiple experiments sequentially and gather statistics.
@@ -335,7 +342,7 @@ def run_batch_experiments(
     results = []
     
     for run_num in range(1, num_runs + 1):
-        result = run_single_experiment(run_num, batch_folder, duration_sec, num_drones, alignment, gradient_map)
+        result = run_single_experiment(run_num, batch_folder, duration_sec, num_drones, alignment, gradient_map, vision_mode)
         results.append(result)
         
         # Print progress
@@ -385,6 +392,7 @@ def run_batch_experiments(
                         "max_duration": config.get('duration_sec'),
                         "performance_mode": config.get('performance_mode'),
                         "base_seed": config.get('base_seed'),
+                        "vision_mode": config.get('vision_mode', 'normal'),
                     }
             except (FileNotFoundError, json.JSONDecodeError) as e:
                 print(f"⚠️  Warning: Could not extract configuration from metadata: {e}")
@@ -432,6 +440,7 @@ def run_batch_experiments(
         print(f"   Alignment: {'Enabled' if configuration.get('alignment_enabled') else 'Disabled'}")
         print(f"   Spacing: {configuration.get('desired_spacing', 'N/A')}m")
         print(f"   Gradient map: {configuration.get('gradient_map', 'N/A')}")
+        print(f"   Vision mode: {configuration.get('vision_mode', 'N/A')}")
         print(f"   Base seed: {configuration.get('base_seed', 'N/A')}")
     
     print(f"\n📊 SUMMARY STATISTICS:")
@@ -488,6 +497,8 @@ if __name__ == "__main__":
                        help='Enable/disable alignment (default: use simulation default)')
     parser.add_argument('--gradient-map', type=str, default=None,
                        help='Gradient map filename without path or extension (e.g., sine_curve_thick1_freq2)')
+    parser.add_argument('--vision-mode', type=str, choices=['normal', 'anisotropic', 'pursuit_evasion'], default=None,
+                       help='Vision lens mode (default: normal)')
     
     args = parser.parse_args()
     
@@ -517,5 +528,6 @@ if __name__ == "__main__":
         base_output_folder=args.output,
         num_drones=args.num_drones,
         alignment=alignment,
-        gradient_map=args.gradient_map
+        gradient_map=args.gradient_map,
+        vision_mode=args.vision_mode
     )

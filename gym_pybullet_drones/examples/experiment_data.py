@@ -49,6 +49,7 @@ class ExperimentConfig:
         # Metadata
         experiment_name: str = "",
         notes: str = "",
+        vision_mode: str = "normal",  # normal | anisotropic | pursuit_evasion (for batch/consolidate)
         
         # Random seed management (for reproducibility)
         random_seed: Optional[int] = None,
@@ -74,6 +75,7 @@ class ExperimentConfig:
         self.finish_line_enabled = finish_line_enabled
         self.experiment_name = experiment_name
         self.notes = notes
+        self.vision_mode = vision_mode
         self.random_seed = random_seed
         self.base_seed = base_seed
         self.run_number = run_number
@@ -104,7 +106,7 @@ class ExperimentConfig:
         """Generate unique hash for this configuration."""
         # Create string representation of key parameters
         key_params = f"{self.num_drones}_{self.alignment_enabled}_{self.desired_spacing}_" \
-                    f"{self.gradient_map_path}"
+                    f"{self.gradient_map_path}_{self.vision_mode}"
         return hashlib.md5(key_params.encode()).hexdigest()[:8]
     
     def get_experiment_id(self) -> str:

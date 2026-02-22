@@ -18,6 +18,7 @@ import os
 from datetime import datetime
 import json
 import itertools
+from pathlib import Path
 from typing import Dict, List, Any, Optional
 
 # Import duration scaling utility
@@ -29,57 +30,32 @@ from gym_pybullet_drones.utils.utils import get_max_duration
 # ============================================================================
 # Define which parameters to sweep and their values
 # Add/remove parameters here to customize your sweep!
+#
+# Full sweep: 3 vision modes x 3 flock sizes x 9 maps = 81 configurations
+# With 50 runs each = 4050 total simulations
 
 PARAMETER_SPACE = {
     # Primary parameters (high impact)
-    'num_drones': [5, 7, 10, 19],                    # Swarm size
-    'alignment': [True, False],                # Alignment on/off
-    'gradient_map': ['sine_curve_thick1_freq2', 
-                     'sine_curve_thick01_freq2',
-                     'sine_curve_thick01_freq4',
-                     'sine_curve_thick000001_freq4'
-                     ],  # Path type
-                    #  'sine_curve_thick000001_freq2',
-                    #  'sine_curve_thick000001_freq8'                     
-    
+    'num_drones': [5, 7, 10],           # Flock size
+    'alignment': [True],                 # Always True for gradient following
+    'vision_mode': ['normal', 'anisotropic', 'pursuit_evasion'],  # Vision lens
+    'gradient_map': [
+        'sine_curve_thick001_freq2', 'sine_curve_thick1_freq2', 'sine_curve_thick000001_freq2',
+        'sine_curve_thick001_freq4', 'sine_curve_thick1_freq4', 'sine_curve_thick000001_freq4',
+        'sine_curve_thick001_freq8', 'sine_curve_thick1_freq8', 'sine_curve_thick000001_freq8',
+    ],
     # Secondary parameters (uncomment to explore)
     # 'max_velocity': [0.10, 0.15, 0.20],      # Max linear velocity
     # 'alignment_weight': [0.5, 1.0, 1.5],     # Beta parameter
-    # 'gradient_map': ['sine', 'funnel'],      # Path type
+    # 'gradient_map': ['sine', 'funnel'],       # Path type
 }
-# FOR exploration: effect of frequency alone
-FREQ_PARAMETER_SPACE = {
-    'num_drones': [7],  
-    'alignment': [True],                
-    'gradient_map': [
-        'sine_curve_thick001_freq2',     # low freq
-        'sine_curve_thick001_freq4',     # medium freq
-        'sine_curve_thick001_freq8'      # high freq
-    ]
-}
-
-# FOR exploration: effect of thickness alone (path width)
-PARAMETER_SPACE = {
-    'num_drones': [7],  
-    'alignment': [True],                
-    'gradient_map': [
-        'sine_curve_thick0.9_freq2',     # Narrowest: ~3.1cm effective width
-        'sine_curve_thick001_freq2',     # Medium: ~2.8m effective width
-        'sine_curve_thick000001_freq2'   # Widest: unlimited gradient spread
-    ]
-}
-
 
 QUICK_PARAMETER_SPACE = {
-    'num_drones': [10],                  
-    'alignment': [True],                
-    'gradient_map': ['sine_curve_thick000001_freq2'],
-    'duration': [20]
-    
-    # Secondary parameters (uncomment to explore)
-    # 'max_velocity': [0.10, 0.15, 0.20],      # Max linear velocity
-    # 'alignment_weight': [0.5, 1.0, 1.5],     # Beta parameter
-    # 'gradient_map': ['sine', 'funnel'],      # Path type
+    'num_drones': [7],
+    'alignment': [True],
+    'vision_mode': ['normal'],
+    'gradient_map': ['sine_curve_thick001_freq2'],
+    'duration': [20],
 }
 
 
@@ -136,10 +112,12 @@ def run_batch(config: Dict[str, Any], num_runs: int, duration: int) -> Dict[str,
         "--duration", str(duration)
     ]
     
-    # Map parameter names to command-line arguments
+    # Map parameter names to command-line arguments for batch_experiments.py
+    # Add new params here when extending the parameter space
     param_mapping = {
         'num_drones': '--num-drones',
         'alignment': '--alignment',
+        'vision_mode': '--vision-mode',  # normal | anisotropic | pursuit_evasion
         'max_velocity': '--max-velocity',
         'alignment_weight': '--alignment-weight',
         'gradient_map': '--gradient-map',
@@ -156,11 +134,13 @@ def run_batch(config: Dict[str, Any], num_runs: int, duration: int) -> Dict[str,
             else:
                 cmd.extend([arg_name, str(param_value)])
     
-    # Run the batch
+    # Run batch from project root so paths (gym_pybullet_drones/, maps_gradient/) resolve correctly
+    project_root = Path(__file__).resolve().parent.parent.parent
     start_time = time.time()
     try:
         result = subprocess.run(
             cmd,
+            cwd=str(project_root),
             check=True,
             capture_output=True,  # Capture output to parse batch_id
             text=True
@@ -172,7 +152,7 @@ def run_batch(config: Dict[str, Any], num_runs: int, duration: int) -> Dict[str,
         if result.stderr:
             print(result.stderr, end='')
         
-        # Parse batch_id from output
+        # Parse batch_id from batch_experiments stdout (needed for consolidate_results.py)
         batch_id = None
         for line in result.stdout.split('\n'):
             if line.startswith('BATCH_ID:'):
@@ -253,11 +233,15 @@ def main():
         description='Flexible Parameter Sweep for Drone Swarm Experiments'
     )
     parser.add_argument('--quick', action='store_true',
-                       help=f'Quick mode: run only {QUICK_MODE_RUNS} iterations per config')
+                       help=f'Quick mode: use QUICK_PARAMETER_SPACE ({QUICK_MODE_RUNS} runs per config by default)')
+    parser.add_argument('--runs', type=int, default=None,
+                       help=f'Number of runs per configuration (overrides default: {NUM_RUNS_PER_CONFIG} full, {QUICK_MODE_RUNS} quick)')
     args = parser.parse_args()
     
-    # Determine number of runs
-    num_runs = QUICK_MODE_RUNS if args.quick else NUM_RUNS_PER_CONFIG
+    # Determine number of runs: --runs overrides, else --quick uses QUICK_MODE_RUNS, else NUM_RUNS_PER_CONFIG
+    num_runs = args.runs if args.runs is not None else (QUICK_MODE_RUNS if args.quick else NUM_RUNS_PER_CONFIG)
+    if num_runs < 1:
+        parser.error("--runs must be at least 1")
     mode_str = "QUICK TEST" if args.quick else "FULL SWEEP"
     
     # Generate all configurations
@@ -367,9 +351,12 @@ def main():
         "results": results
     }
     
-    summary_path = f"results_batch/sweep_summary_{datetime.now().strftime('%m.%d.%Y_%H.%M.%S')}.json"
-    os.makedirs("results_batch", exist_ok=True)
-    with open(summary_path, 'w') as f:
+    # Save sweep summary to results_batch/ at project root (same location as batch folders)
+    project_root = Path(__file__).resolve().parent.parent.parent
+    results_dir = project_root / "results_batch"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = results_dir / f"sweep_summary_{datetime.now().strftime('%m.%d.%Y_%H.%M.%S')}.json"
+    with open(str(summary_path), 'w') as f:
         json.dump(sweep_summary, f, indent=2)
     
     print(f"📄 Sweep summary saved to: {summary_path}\n")

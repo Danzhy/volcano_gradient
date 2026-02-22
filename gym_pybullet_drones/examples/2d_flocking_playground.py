@@ -30,8 +30,9 @@ import matplotlib.pyplot as plt
 from swarm_visualization import create_drone_position_overlay, create_analysis_dashboard, print_simulation_summary
 from experiment_data import ExperimentConfig, ExperimentData, check_success
 
-# Import anisotropic vision utilities
+# Import vision lens utilities
 from anisotropic_utils import compute_angle_weight
+from pursuit_evasion_utils import compute_distance_scale_2d
 
 # Gradient map settings (matching dm_ds_v2.py approach)
 # Auto-detect which computer we're on by checking which base path exists
@@ -313,8 +314,9 @@ class FlockingUtils2DWithLightSensor:
     """
     
     def __init__(self, n_agents, center_x, center_y, center_z, spacing, alignment_enabled=True,
-                 anisotropic_enabled=False, angle_weighting_method="gaussian_normal",
-                 angle_weighting_sigma=np.pi/4, angle_weighting_mu=0.0, angle_weighting_min_weight=0.0):
+                 vision_mode="normal", angle_weighting_method="gaussian_normal",
+                 angle_weighting_sigma=np.pi/4, angle_weighting_mu=0.0, angle_weighting_min_weight=0.0,
+                 pursuit_max_scale=3.0, pursuit_min_scale=0.3, pursuit_method="gaussian"):
         self.n_agents = n_agents
         self.center_x = center_x
         self.center_y = center_y
@@ -322,12 +324,20 @@ class FlockingUtils2DWithLightSensor:
         self.spacing = spacing
         self.alignment_enabled = alignment_enabled
         
-        # Anisotropic vision parameters
-        self.anisotropic_enabled = anisotropic_enabled
+        # Vision mode: "normal" | "anisotropic" | "pursuit_evasion"
+        self.vision_mode = vision_mode
+        self.anisotropic_enabled = (vision_mode == "anisotropic")
+        
+        # Anisotropic vision parameters (used when vision_mode == "anisotropic")
         self.angle_weighting_method = angle_weighting_method
         self.angle_weighting_sigma = angle_weighting_sigma
         self.angle_weighting_mu = angle_weighting_mu
         self.angle_weighting_min_weight = angle_weighting_min_weight
+        
+        # Pursuit-evasion parameters (used when vision_mode == "pursuit_evasion")
+        self.pursuit_max_scale = pursuit_max_scale
+        self.pursuit_min_scale = pursuit_min_scale
+        self.pursuit_method = pursuit_method
 
         # --- Parameters from swarm_vu.c and dm_ds_v2.py ---
         self.alpha = 2.0     # Weight for proximal force
@@ -357,10 +367,12 @@ class FlockingUtils2DWithLightSensor:
         print(f"   - Re-implementing logic from swarm_vu.c and dm_ds_v2.py")
         print(f"   - Constraining all drones to Z = {self.fixed_z}")
         print(f"   - Alignment: {'ENABLED (β=1.0)' if alignment_enabled else 'DISABLED (β=0.0)'}")
-        if anisotropic_enabled:
-            print(f"   - Anisotropic vision: ENABLED ({angle_weighting_method}, σ={angle_weighting_sigma:.3f} rad ≈ {np.degrees(angle_weighting_sigma):.1f}°)")
+        if vision_mode == "anisotropic":
+            print(f"   - Vision: ANISOTROPIC ({angle_weighting_method}, σ={angle_weighting_sigma:.3f} rad ≈ {np.degrees(angle_weighting_sigma):.1f}°)")
+        elif vision_mode == "pursuit_evasion":
+            print(f"   - Vision: PURSUIT-EVASION (catch-run lens, ahead scale={pursuit_max_scale:.1f}x, behind scale={pursuit_min_scale:.1f}x)")
         else:
-            print(f"   - Anisotropic vision: DISABLED (isotropic perception)")
+            print(f"   - Vision: NORMAL (isotropic perception)")
 
     def initialize_positions(self):
         """Initialize positions but ensure Z is fixed"""
@@ -447,8 +459,10 @@ class FlockingUtils2DWithLightSensor:
                     # Angle from agent i toward neighbor j (global frame)
                     ij_ang = np.arctan2(dist_y, dist_x)
                     
-                    # --- Anisotropic vision: weight by relative angle ---
-                    if self.anisotropic_enabled:
+                    # --- Vision lens: anisotropic (weight) or pursuit-evasion (distance scale) ---
+                    # Anisotropic: neighbors ahead get full weight, behind get minimal
+                    # Pursuit-evasion: ahead appear farther, behind appear closer (catch-run)
+                    if self.vision_mode == "anisotropic":
                         relative_angle = ij_ang - self.headings[i]
                         relative_angle = (relative_angle + np.pi) % (2 * np.pi) - np.pi  # Wrap to [-π, π]
                         angle_weight = compute_angle_weight(
@@ -458,16 +472,29 @@ class FlockingUtils2DWithLightSensor:
                             sigma=self.angle_weighting_sigma,
                             min_weight=self.angle_weighting_min_weight
                         )
+                        effective_distance = distance
+                    elif self.vision_mode == "pursuit_evasion":
+                        # Scale perceived distance: ahead -> farther (weaker force), behind -> closer (stronger)
+                        dist_scale = compute_distance_scale_2d(
+                            self.headings[i], ij_ang,
+                            method=self.pursuit_method,
+                            max_scale=self.pursuit_max_scale,
+                            min_scale=self.pursuit_min_scale
+                        )
+                        effective_distance = distance * dist_scale
+                        angle_weight = 1.0
                     else:
                         angle_weight = 1.0
+                        effective_distance = distance
                     
-                    # ---- Proximal Force Calculation (weighted) ----
+                    # ---- Proximal Force Calculation (weighted/scaled) ----
                     # Equation (1) from swarm_vu.c: Lennard-Jones potential
+                    # effective_distance: real distance for normal/anisotropic; scaled for pursuit-evasion
                     force_magnitude = -self.epsilon * (
-                        (2 * (su**4 / distance**5)) - (su**2 / distance**3)
+                        (2 * (su**4 / effective_distance**5)) - (su**2 / effective_distance**3)
                     )
                     
-                    # Accumulate proximal force components (weighted by angle)
+                    # Accumulate proximal force components (weighted by angle for anisotropic)
                     px += angle_weight * force_magnitude * np.cos(ij_ang)
                     py += angle_weight * force_magnitude * np.sin(ij_ang)
                     
@@ -548,8 +575,10 @@ class FlockingUtils2DWithLightSensor:
                 if distance < self.Dp:
                     ij_ang = np.arctan2(dist_y, dist_x)
                     
-                    # --- Anisotropic vision: weight by relative angle ---
-                    if self.anisotropic_enabled:
+                    # --- Vision lens: anisotropic (weight) or pursuit-evasion (distance scale) ---
+                    # Anisotropic: neighbors ahead get full weight, behind get minimal
+                    # Pursuit-evasion: ahead appear farther, behind appear closer (catch-run)
+                    if self.vision_mode == "anisotropic":
                         relative_angle = ij_ang - self.headings[i]
                         relative_angle = (relative_angle + np.pi) % (2 * np.pi) - np.pi  # Wrap to [-π, π]
                         angle_weight = compute_angle_weight(
@@ -559,11 +588,23 @@ class FlockingUtils2DWithLightSensor:
                             sigma=self.angle_weighting_sigma,
                             min_weight=self.angle_weighting_min_weight
                         )
+                        effective_distance = distance
+                    elif self.vision_mode == "pursuit_evasion":
+                        # Scale perceived distance: ahead -> farther (weaker force), behind -> closer (stronger)
+                        dist_scale = compute_distance_scale_2d(
+                            self.headings[i], ij_ang,
+                            method=self.pursuit_method,
+                            max_scale=self.pursuit_max_scale,
+                            min_scale=self.pursuit_min_scale
+                        )
+                        effective_distance = distance * dist_scale
+                        angle_weight = 1.0
                     else:
                         angle_weight = 1.0
+                        effective_distance = distance
                     
                     force_magnitude = -self.epsilon * (
-                        (2 * (su**4 / distance**5)) - (su**2 / distance**3)
+                        (2 * (su**4 / effective_distance**5)) - (su**2 / effective_distance**3)
                     )
                     px += angle_weight * force_magnitude * np.cos(ij_ang)
                     py += angle_weight * force_magnitude * np.sin(ij_ang)
@@ -598,7 +639,7 @@ class FlockingUtils2DWithLightSensor:
                 "vx": base_vx, "vy": base_vy,
                 "light_intensity": float(light_capped), "su": su,
                 "heading": self.headings[i],
-                "anisotropic_enabled": self.anisotropic_enabled,
+                "vision_mode": self.vision_mode,
             })
         return velocities_2d, force_debug_list
 
@@ -619,8 +660,9 @@ class FlockingUtils2DWithLightSensor:
 def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42, 
         num_drones=NUM_DRONES, map_length=WORLD_SIZE_X, alignment_enabled=True, 
         gradient_map_name=None,
-        anisotropic_enabled=False, angle_weighting_method="gaussian_normal",
-        angle_weighting_sigma=np.pi/4, angle_weighting_mu=0.0, angle_weighting_min_weight=0.0):
+        vision_mode="normal", angle_weighting_method="gaussian_normal",
+        angle_weighting_sigma=np.pi/4, angle_weighting_mu=0.0, angle_weighting_min_weight=0.0,
+        pursuit_max_scale=3.0, pursuit_min_scale=0.3, pursuit_method="cosine"):
     """
     Run 2D flocking simulation with gradient following.
     
@@ -708,7 +750,7 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
     print()
     
     # Playground: always use accurate mode with GUI so we can see map + force vectors + slow-mo
-    set_performance_mode("accurate")
+    set_performance_mode("headless_accurate")
 
     # Create 2D wrapper with gradient following capability
     f_util = FlockingUtils2DWithLightSensor(
@@ -716,11 +758,14 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
         center_x=init_center_x, center_y=init_center_y, center_z=init_center_z, 
         spacing=spacing,
         alignment_enabled=alignment_enabled,
-        anisotropic_enabled=anisotropic_enabled,
+        vision_mode=vision_mode,
         angle_weighting_method=angle_weighting_method,
         angle_weighting_sigma=angle_weighting_sigma,
         angle_weighting_mu=angle_weighting_mu,
-        angle_weighting_min_weight=angle_weighting_min_weight
+        angle_weighting_min_weight=angle_weighting_min_weight,
+        pursuit_max_scale=pursuit_max_scale,
+        pursuit_min_scale=pursuit_min_scale,
+        pursuit_method=pursuit_method
     )
     pos_xs, pos_ys, pos_zs, pos_h_xc, pos_h_yc, pos_h_zc = f_util.initialize_positions()
 
@@ -830,6 +875,7 @@ def run(duration_sec=DURATION_SEC, seed=None, run_number=None, base_seed=42,
         finish_line_enabled=True,
         experiment_name="",  # Will be auto-generated
         notes="",
+        vision_mode=vision_mode,
         # Random seed management (for reproducibility)
         random_seed=actual_seed,
         base_seed=base_seed,
@@ -1174,10 +1220,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='2D Flocking with Gradient Following',
         epilog='Examples:\n'
-               '  Single run (default seed):     python %(prog)s --duration 240\n'
-               '  Specific seed:                 python %(prog)s --duration 240 --seed 123\n'
-               '  Batch run (from batch_experiments): python %(prog)s --duration 240 --run-number 5\n'
-               '  Reproduce specific run:        python %(prog)s --duration 240 --seed 47',
+               '  Normal simulation:            python %(prog)s --duration 240\n'
+               '  Anisotropic vision:            python %(prog)s --vision-mode anisotropic\n'
+               '  Pursuit-evasion (catch-run):   python %(prog)s --vision-mode pursuit_evasion\n'
+               '  Specific seed:                 python %(prog)s --duration 240 --seed 123',
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument('--duration', type=int, default=None,
@@ -1196,17 +1242,25 @@ if __name__ == "__main__":
                        help='Enable/disable alignment (default: enabled)')
     parser.add_argument('--gradient-map', type=str, default=None,
                        help='Gradient map filename without path or extension (e.g., sine_curve_thick1_freq2)')
-    parser.add_argument('--anisotropic', type=str2bool, default=False,
-                       help='Enable anisotropic vision (default: False)')
+    parser.add_argument('--vision-mode', type=str, default='normal',
+                       choices=['normal', 'anisotropic', 'pursuit_evasion'],
+                       help='Vision lens: normal (isotropic), anisotropic (ahead-focused), or pursuit_evasion (catch-run)')
     parser.add_argument('--angle-method', type=str, default='gaussian_normal',
                        choices=['gaussian_normal', 'cosine', 'step', 'uniform'],
-                       help='Angle weighting method (default: gaussian_normal)')
+                       help='Angle weighting method for anisotropic mode (default: gaussian_normal)')
     parser.add_argument('--angle-sigma', type=float, default=None,
                        help='FOV width in radians for gaussian method (default: π/4 ≈ 45°)')
     parser.add_argument('--angle-mu', type=float, default=0.0,
                        help='Center direction in radians (default: 0.0 = forward)')
     parser.add_argument('--angle-min-weight', type=float, default=0.0,
-                       help='Minimum weight for neighbors behind (default: 0.0 = blind behind)')
+                       help='Minimum weight for neighbors behind in anisotropic mode (default: 0.0 = blind behind)')
+    parser.add_argument('--pursuit-max-scale', type=float, default=3.0,
+                       help='Distance scale when neighbor is ahead in pursuit-evasion mode (default: 3.0 = appear farther)')
+    parser.add_argument('--pursuit-min-scale', type=float, default=0.3,
+                       help='Distance scale when neighbor is behind in pursuit-evasion mode (default: 0.3 = appear closer)')
+    parser.add_argument('--pursuit-method', type=str, default='cosine',
+                       choices=['cosine', 'linear', 'gaussian'],
+                       help='Scaling method for pursuit-evasion mode (default: cosine)')
     
     args = parser.parse_args()
     
@@ -1229,8 +1283,11 @@ if __name__ == "__main__":
         map_length=args.map_length,
         alignment_enabled=alignment_enabled,
         gradient_map_name=args.gradient_map,
-        anisotropic_enabled=args.anisotropic,
+        vision_mode=args.vision_mode,
         angle_weighting_method=args.angle_method,
         angle_weighting_sigma=angle_sigma,
         angle_weighting_mu=args.angle_mu,
-        angle_weighting_min_weight=args.angle_min_weight)
+        angle_weighting_min_weight=args.angle_min_weight,
+        pursuit_max_scale=args.pursuit_max_scale,
+        pursuit_min_scale=args.pursuit_min_scale,
+        pursuit_method=args.pursuit_method)
