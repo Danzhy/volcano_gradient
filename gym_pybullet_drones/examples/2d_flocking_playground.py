@@ -297,9 +297,9 @@ spacing = 0.8
 
 # ========== Playground: force analysis, slow-mo, live map ==========
 # Beams: RED = total flocking force (proximal + alignment, world frame). GREEN = velocity (where drone is moving).
-SHOW_FORCE_ANALYSIS = True   # Print per-agent forces and toward/away from finish every second
-SHOW_FORCE_VECTORS = True    # Draw force (red) and velocity (green) arrows in PyBullet window
-SHOW_LIVE_MAP = True         # Open bird's-eye matplotlib window with map + drones + force vectors
+SHOW_FORCE_ANALYSIS = False   # Print per-agent forces and toward/away from finish every second
+SHOW_FORCE_VECTORS = False    # Draw force (red) and velocity (green) arrows in PyBullet window
+SHOW_LIVE_MAP = False         # Open bird's-eye matplotlib window with map + drones + force vectors
 SLOW_MO_FACTOR = .25         # 1.0 = run as fast as possible (no sync); <1 = slow-mo (e.g. 0.25 = 4x slow)
 LIVE_MAP_UPDATE_EVERY_N_STEPS = 5  # Update live map every N steps (lower = smoother but slower; 1 = every step)
 FORCE_VECTOR_SCALE = 1.5     # Scale for drawing force arrows in world units (tune for visibility)
@@ -356,9 +356,9 @@ class FlockingUtils2DWithLightSensor:
         # Drone state variables
         # self.headings = np.random.rand(n_agents) * 2 * np.pi # Initialize with random headings
         # Initialize with aligned headings
-        #self.headings = np.random.uniform(-np.pi/12, np.pi/12, n_agents)
+        self.headings = np.random.uniform(-np.pi/12, np.pi/12, n_agents)
         #self.headings = np.random.uniform(-np.pi, np.pi, n_agents) # fully random
-        self.headings = np.random.uniform(np.pi - np.pi/12,   np.pi + np.pi/12,  n_agents)
+        # self.headings = np.random.uniform(np.pi - np.pi/12,   np.pi + np.pi/12,  n_agents)
 
 
 
